@@ -19,6 +19,7 @@ import ReactFlow, {
   NodeProps,
   Position,
   MarkerType,
+  useReactFlow,
   useEdgesState,
   useNodesState
 } from 'reactflow';
@@ -195,6 +196,21 @@ function FolderIcon() {
         strokeLinejoin="round"
       />
     </svg>
+  );
+}
+
+function CanvasZoomControls() {
+  const { zoomIn, zoomOut } = useReactFlow();
+
+  return (
+    <div className="canvas-zoom-controls" aria-label="Controles de zoom">
+      <button type="button" className="canvas-zoom-button" onClick={() => zoomIn()}>
+        +
+      </button>
+      <button type="button" className="canvas-zoom-button" onClick={() => zoomOut()}>
+        -
+      </button>
+    </div>
   );
 }
 
@@ -415,7 +431,6 @@ function HallCard({
           </div>
           <div className="hall-card-copy">
             <strong>{visao.nome}</strong>
-            <span>ID: {visao.id}</span>
           </div>
         </div>
       </button>
@@ -785,6 +800,7 @@ export default function App() {
         connectionMode={ConnectionMode.Loose}
         fitView
       >
+        <CanvasZoomControls />
         <Background color="#2a2f3b" gap={20} size={1} />
       </ReactFlow>
 

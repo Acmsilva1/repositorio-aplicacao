@@ -11,6 +11,29 @@ app.use(express.json());
 
 const supabase = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_ANON_KEY);
 
+async function deleteFlowCascade(visaoId) {
+  const { error: errConexoes } = await supabase
+    .from('fluxo_conexoes')
+    .delete()
+    .eq('visao_id', visaoId);
+
+  if (errConexoes) return errConexoes;
+
+  const { error: errNos } = await supabase
+    .from('fluxo_nos_posicoes')
+    .delete()
+    .eq('visao_id', visaoId);
+
+  if (errNos) return errNos;
+
+  const { error: errVisao } = await supabase
+    .from('fluxos_visoes')
+    .delete()
+    .eq('id', visaoId);
+
+  return errVisao;
+}
+
 // 1. BUSCAR FLUXO COMPLETO (Nodes e Edges formatados para o React Flow)
 app.get('/api/fluxo/:visaoId', async (req, res) => {
   try {
@@ -56,6 +79,48 @@ app.get('/api/visoes', async (req, res) => {
   const { data, error } = await supabase.from('fluxos_visoes').select('*');
   if (error) return res.status(400).json({ error: error.message });
   res.json(data);
+});
+
+// 2.1 CRUD: CRIAR UMA NOVA VISÃO / HALL
+app.post('/api/visoes', async (req, res) => {
+  const { nome } = req.body;
+  if (!nome?.trim()) {
+    return res.status(400).json({ error: 'Nome obrigatório' });
+  }
+
+  const { data, error } = await supabase
+    .from('fluxos_visoes')
+    .insert({ nome: nome.trim() })
+    .select()
+    .single();
+
+  if (error) return res.status(400).json({ error: error.message });
+  res.status(201).json(data);
+});
+
+// 2.2 CRUD: RENOMEAR UMA VISÃO / HALL
+app.patch('/api/visoes/:id', async (req, res) => {
+  const { nome } = req.body;
+  if (!nome?.trim()) {
+    return res.status(400).json({ error: 'Nome obrigatório' });
+  }
+
+  const { data, error } = await supabase
+    .from('fluxos_visoes')
+    .update({ nome: nome.trim() })
+    .eq('id', req.params.id)
+    .select()
+    .single();
+
+  if (error) return res.status(400).json({ error: error.message });
+  res.json(data);
+});
+
+// 2.3 CRUD: REMOVER UMA VISÃO / HALL
+app.delete('/api/visoes/:id', async (req, res) => {
+  const error = await deleteFlowCascade(req.params.id);
+  if (error) return res.status(400).json({ error: error.message });
+  res.sendStatus(204);
 });
 
 // 3. CRUD: CRIAR NOVO COMPONENTE E ADICIONAR AO FLUXO
@@ -151,7 +216,16 @@ app.patch('/api/fluxo/no/nome', async (req, res) => {
 
 // 6. CRUD: REMOVER INSTÂNCIA DO FLUXO (E CASCASE EDGES)
 app.delete('/api/fluxo/no/:id', async (req, res) => {
-  const { error } = await supabase.from('fluxo_nos_posicoes').delete().eq('id', req.params.id);
+  const nodeId = req.params.id;
+
+  const { error: errEdges } = await supabase
+    .from('fluxo_conexoes')
+    .delete()
+    .or(`origem_no_id.eq.${nodeId},destino_no_id.eq.${nodeId}`);
+
+  if (errEdges) return res.status(400).json({ error: errEdges.message });
+
+  const { error } = await supabase.from('fluxo_nos_posicoes').delete().eq('id', nodeId);
   if (error) return res.status(400).json({ error: error.message });
   res.sendStatus(204);
 });

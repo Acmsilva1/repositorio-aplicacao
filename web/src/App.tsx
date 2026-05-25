@@ -1,19 +1,22 @@
-import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent } from 'react';
+import { useCallback, useEffect, useMemo, useState, type FormEvent, type MouseEvent as ReactMouseEvent } from 'react';
 import ReactFlow, {
-  Background,
-  Controls,
-  Handle,
-  NodeDragHandler,
-  Position,
   addEdge,
+  Background,
   Connection,
+  Edge,
+  Handle,
+  Node,
+  NodeDragHandler,
+  NodeProps,
+  Position,
   useEdgesState,
   useNodesState
 } from 'reactflow';
 import axios from 'axios';
 import 'reactflow/dist/style.css';
 
-const API_URL = (import.meta as any).env.VITE_API_URL || ((import.meta as any).env.DEV ? 'http://localhost:3001/api' : '/api');
+const API_URL =
+  (import.meta as any).env.VITE_API_URL || ((import.meta as any).env.DEV ? 'http://localhost:3001/api' : '/api');
 
 const nodeOptions = [
   { type: 'painel', label: 'Painel', emoji: '📊', className: 'painel-node' },
@@ -22,147 +25,77 @@ const nodeOptions = [
   { type: 'tabela', label: 'Tabela / View', emoji: '🛢️', className: 'tabela-node' }
 ] as const;
 
-type NodeOptionType = (typeof nodeOptions)[number]['type'];
+type FlowType = (typeof nodeOptions)[number]['type'];
+type FlowMode = 'hall' | 'canvas';
+type VisaoItem = { id: string; nome: string };
+type FlowNodeData = { label: string };
+type FlowNode = Node<FlowNodeData, FlowType>;
 
-const nodeByType = nodeOptions.reduce<Record<string, (typeof nodeOptions)[number]>>((acc, option) => {
-  acc[option.type] = option;
-  return acc;
-}, {});
+const nodeOptionByType = nodeOptions.reduce<Record<FlowType, (typeof nodeOptions)[number]>>(
+  (acc, option) => {
+    acc[option.type] = option;
+    return acc;
+  },
+  {} as Record<FlowType, (typeof nodeOptions)[number]>
+);
 
 const nodeTypes = {
-  painel: ({ data }: any) => <FlowNode data={data} className="painel-node" emoji="📊" />,
-  componente_web: ({ data }: any) => <FlowNode data={data} className="web-node" emoji="💻" />,
-  service: ({ data }: any) => <FlowNode data={data} className="service-node" emoji="⚙️" />,
-  tabela: ({ data }: any) => <FlowNode data={data} className="tabela-node" emoji="🛢️" />
+  painel: (props: NodeProps<FlowNodeData>) => <CanvasNode {...props} />,
+  componente_web: (props: NodeProps<FlowNodeData>) => <CanvasNode {...props} />,
+  service: (props: NodeProps<FlowNodeData>) => <CanvasNode {...props} />,
+  tabela: (props: NodeProps<FlowNodeData>) => <CanvasNode {...props} />
 };
 
-function FlowNode({ data, className, emoji }: { data: any; className: string; emoji: string }) {
+function CanvasNode({ data, type }: NodeProps<FlowNodeData>) {
+  const option = nodeOptionByType[(type as FlowType) ?? 'tabela'];
+
   return (
-    <div className={`custom-node ${className}`}>
+    <div className={`custom-node ${option.className}`}>
       <Handle type="target" position={Position.Left} style={{ background: '#64748b', width: 8, height: 8 }} />
-      <div className="node-emoji">{emoji}</div>
+      <div className="node-emoji">{option.emoji}</div>
       <div className="node-label">{data.label}</div>
       <Handle type="source" position={Position.Right} style={{ background: '#64748b', width: 8, height: 8 }} />
     </div>
   );
 }
 
-function NodeEditor({
-  node,
-  selected,
-  onSelect,
-  onRename,
-  onDelete
-}: {
-  node: any;
-  selected: boolean;
-  onSelect: (nodeId: string) => void;
-  onRename: (nodeId: string, nextName: string) => void;
-  onDelete: (nodeId: string) => void;
-}) {
-  const [draft, setDraft] = useState(node.data.label ?? '');
-  const [isSaving, setIsSaving] = useState(false);
-  const saveTimer = useRef<number | null>(null);
-
-  useEffect(() => {
-    setDraft(node.data.label ?? '');
-  }, [node.data.label]);
-
-  useEffect(() => {
-    if (draft === (node.data.label ?? '')) return;
-
-    if (saveTimer.current) {
-      window.clearTimeout(saveTimer.current);
-    }
-
-    saveTimer.current = window.setTimeout(async () => {
-      if (!draft.trim() || draft.trim() === (node.data.label ?? '')) return;
-      setIsSaving(true);
-      try {
-        await onRename(node.id, draft.trim());
-      } finally {
-        setIsSaving(false);
-      }
-    }, 550);
-
-    return () => {
-      if (saveTimer.current) {
-        window.clearTimeout(saveTimer.current);
-      }
-    };
-  }, [draft, node.data.label, node.id, onRename]);
-
-  const option = nodeByType[node.type] ?? nodeByType.tabela;
-
-  return (
-    <div className={`crud-item ${selected ? 'is-selected' : ''}`} onClick={() => onSelect(node.id)}>
-      <div className="crud-item-top">
-        <div>
-          <div className="crud-item-title">
-            <span className="crud-item-emoji">{option.emoji}</span>
-            <span>{option.label}</span>
-          </div>
-          <div className="crud-item-id">ID: {node.id}</div>
-        </div>
-        <button className="btn-ghost" type="button" onClick={() => onDelete(node.id)}>
-          Remover
-        </button>
-      </div>
-
-      <label className="field-label">
-        Nome
-        <input
-          type="text"
-          value={draft}
-          onChange={(event) => setDraft(event.target.value)}
-          onBlur={() => {
-            if (draft.trim() && draft.trim() !== node.data.label) {
-              onRename(node.id, draft.trim());
-            }
-          }}
-        />
-      </label>
-
-      <div className={`save-hint ${isSaving ? 'is-saving' : ''}`}>
-        {isSaving ? 'Salvando automaticamente...' : 'Auto-save ativo'}
-      </div>
-    </div>
-  );
-}
-
-function CreateModal({
-  isOpen,
-  initialType,
+function HallModal({
+  open,
+  title,
+  description,
+  initialValue,
+  submitLabel,
   onClose,
-  onCreate
+  onSubmit
 }: {
-  isOpen: boolean;
-  initialType: NodeOptionType;
+  open: boolean;
+  title: string;
+  description: string;
+  initialValue: string;
+  submitLabel: string;
   onClose: () => void;
-  onCreate: (payload: { nome: string; tipo: NodeOptionType }) => Promise<void>;
+  onSubmit: (value: string) => Promise<void>;
 }) {
-  const [nome, setNome] = useState('');
-  const [tipo, setTipo] = useState<NodeOptionType>(initialType);
-  const [isSaving, setIsSaving] = useState(false);
+  const [draft, setDraft] = useState(initialValue);
+  const [saving, setSaving] = useState(false);
 
   useEffect(() => {
-    if (!isOpen) return;
-    setNome('');
-    setTipo(initialType);
-  }, [isOpen, initialType]);
+    if (open) setDraft(initialValue);
+  }, [open, initialValue]);
 
-  if (!isOpen) return null;
+  if (!open) return null;
 
   const handleSubmit = async (event: FormEvent) => {
     event.preventDefault();
-    if (!nome.trim()) return;
+    const value = draft.trim();
+    if (!value) return;
 
-    setIsSaving(true);
+    setSaving(true);
     try {
-      await onCreate({ nome: nome.trim(), tipo });
+      await onSubmit(value);
       onClose();
     } finally {
-      setIsSaving(false);
+      setSaving(false);
     }
   };
 
@@ -171,15 +104,87 @@ function CreateModal({
       <div className="modal-card" onClick={(event) => event.stopPropagation()}>
         <div className="modal-header">
           <div>
-            <h3>Novo item</h3>
-            <p>Escolha o nome e o tipo antes de inserir no canvas.</p>
+            <h3>{title}</h3>
+            <p>{description}</p>
           </div>
-          <button className="btn-ghost" type="button" onClick={onClose}>
+          <button type="button" className="btn-ghost" onClick={onClose}>
             Fechar
           </button>
         </div>
 
-        <form onSubmit={handleSubmit} className="modal-form">
+        <form className="modal-form" onSubmit={handleSubmit}>
+          <label className="field-label">
+            Nome
+            <input
+              autoFocus
+              type="text"
+              value={draft}
+              onChange={(event) => setDraft(event.target.value)}
+              placeholder="Ex: Painel x"
+            />
+          </label>
+
+          <button type="submit" className="btn-primary" disabled={saving}>
+            {saving ? 'Salvando...' : submitLabel}
+          </button>
+        </form>
+      </div>
+    </div>
+  );
+}
+
+function NodeModal({
+  open,
+  initialType,
+  onClose,
+  onSubmit
+}: {
+  open: boolean;
+  initialType: FlowType;
+  onClose: () => void;
+  onSubmit: (payload: { nome: string; tipo: FlowType }) => Promise<void>;
+}) {
+  const [nome, setNome] = useState('');
+  const [tipo, setTipo] = useState<FlowType>(initialType);
+  const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    if (open) {
+      setNome('');
+      setTipo(initialType);
+    }
+  }, [open, initialType]);
+
+  if (!open) return null;
+
+  const handleSubmit = async (event: FormEvent) => {
+    event.preventDefault();
+    const value = nome.trim();
+    if (!value) return;
+
+    setSaving(true);
+    try {
+      await onSubmit({ nome: value, tipo });
+      onClose();
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <div className="modal-backdrop" onClick={onClose}>
+      <div className="modal-card modal-card-wide" onClick={(event) => event.stopPropagation()}>
+        <div className="modal-header">
+          <div>
+            <h3>Novo item no canvas</h3>
+            <p>Escolha o tipo pelo ícone e informe o nome do item.</p>
+          </div>
+          <button type="button" className="btn-ghost" onClick={onClose}>
+            Fechar
+          </button>
+        </div>
+
+        <form className="modal-form" onSubmit={handleSubmit}>
           <label className="field-label">
             Nome
             <input
@@ -205,8 +210,8 @@ function CreateModal({
             ))}
           </div>
 
-          <button type="submit" className="btn-primary" disabled={isSaving}>
-            {isSaving ? 'Salvando...' : 'Criar item'}
+          <button type="submit" className="btn-primary" disabled={saving}>
+            {saving ? 'Salvando...' : 'Criar item'}
           </button>
         </form>
       </div>
@@ -214,41 +219,137 @@ function CreateModal({
   );
 }
 
-export default function App() {
-  const [visoes, setVisoes] = useState<any[]>([]);
-  const [currentVisao, setCurrentVisao] = useState<string>('');
-  const [nodes, setNodes, onNodesChange] = useNodesState([]);
-  const [edges, setEdges, onEdgesChange] = useEdgesState([]);
-  const [isCreateOpen, setIsCreateOpen] = useState(false);
-  const [createType, setCreateType] = useState<NodeOptionType>('tabela');
-  const [selectedNodeId, setSelectedNodeId] = useState<string>('');
+function HallCard({
+  visao,
+  onOpen,
+  onEdit,
+  onDelete
+}: {
+  visao: VisaoItem;
+  onOpen: (visao: VisaoItem) => void;
+  onEdit: (visao: VisaoItem) => void;
+  onDelete: (visao: VisaoItem) => void;
+}) {
+  return (
+    <article className="hall-card">
+      <button className="hall-card-main" type="button" onClick={() => onOpen(visao)}>
+        <div className="hall-card-badge">📁</div>
+        <div className="hall-card-copy">
+          <strong>{visao.nome}</strong>
+          <span>ID: {visao.id}</span>
+        </div>
+      </button>
 
-  useEffect(() => {
-    axios.get(`${API_URL}/visoes`).then((res) => {
-      setVisoes(res.data);
-      if (res.data.length > 0) setCurrentVisao(res.data[0].id);
-    });
+      <div className="hall-card-actions">
+        <button type="button" className="btn-ghost" onClick={() => onEdit(visao)}>
+          Editar
+        </button>
+        <button type="button" className="btn-ghost danger" onClick={() => onDelete(visao)}>
+          Excluir
+        </button>
+      </div>
+    </article>
+  );
+}
+
+export default function App() {
+  const [mode, setMode] = useState<FlowMode>('hall');
+  const [visoes, setVisoes] = useState<VisaoItem[]>([]);
+  const [currentVisao, setCurrentVisao] = useState<VisaoItem | null>(null);
+  const [nodes, setNodes, onNodesChange] = useNodesState<FlowNode[]>([]);
+  const [edges, setEdges, onEdgesChange] = useEdgesState<Edge[]>([]);
+  const [isHallModalOpen, setIsHallModalOpen] = useState(false);
+  const [hallModalMode, setHallModalMode] = useState<'create' | 'edit'>('create');
+  const [editingVisao, setEditingVisao] = useState<VisaoItem | null>(null);
+  const [isNodeModalOpen, setIsNodeModalOpen] = useState(false);
+  const [nodeModalType, setNodeModalType] = useState<FlowType>('tabela');
+
+  const loadVisoes = useCallback(async () => {
+    const res = await axios.get(`${API_URL}/visoes`);
+    setVisoes(res.data);
   }, []);
 
+  const loadFlow = useCallback(async (visaoId: string) => {
+    const res = await axios.get(`${API_URL}/fluxo/${visaoId}`);
+    setNodes(res.data.nodes);
+    setEdges(res.data.edges);
+  }, [setEdges, setNodes]);
+
   useEffect(() => {
-    if (currentVisao) {
-      axios.get(`${API_URL}/fluxo/${currentVisao}`).then((res) => {
-        setNodes(res.data.nodes);
-        setEdges(res.data.edges);
-      });
+    loadVisoes().catch((error) => alert(error.response?.data?.error || 'Erro ao carregar hall'));
+  }, [loadVisoes]);
+
+  useEffect(() => {
+    if (mode === 'canvas' && currentVisao) {
+      loadFlow(currentVisao.id).catch((error) => alert(error.response?.data?.error || 'Erro ao carregar canvas'));
+    } else {
+      setNodes([]);
+      setEdges([]);
     }
-  }, [currentVisao, setNodes, setEdges]);
+  }, [currentVisao, loadFlow, mode, setEdges, setNodes]);
+
+  const openHallCreate = useCallback(() => {
+    setHallModalMode('create');
+    setEditingVisao(null);
+    setIsHallModalOpen(true);
+  }, []);
+
+  const openHallEdit = useCallback((visao: VisaoItem) => {
+    setHallModalMode('edit');
+    setEditingVisao(visao);
+    setIsHallModalOpen(true);
+  }, []);
+
+  const openCanvas = useCallback((visao: VisaoItem) => {
+    setCurrentVisao(visao);
+    setMode('canvas');
+  }, []);
+
+  const closeCanvas = useCallback(() => {
+    setMode('hall');
+    setCurrentVisao(null);
+    setIsNodeModalOpen(false);
+  }, []);
+
+  const handleHallSubmit = useCallback(
+    async (nome: string) => {
+      if (hallModalMode === 'create') {
+        await axios.post(`${API_URL}/visoes`, { nome });
+      } else if (editingVisao) {
+        await axios.patch(`${API_URL}/visoes/${editingVisao.id}`, { nome });
+      }
+
+      await loadVisoes();
+    },
+    [editingVisao, hallModalMode, loadVisoes]
+  );
+
+  const handleDeleteVisao = useCallback(
+    async (visao: VisaoItem) => {
+      const confirmacao = window.confirm(`Excluir o fluxograma "${visao.nome}"?`);
+      if (!confirmacao) return;
+
+      await axios.delete(`${API_URL}/visoes/${visao.id}`);
+      await loadVisoes();
+
+      if (currentVisao?.id === visao.id) {
+        closeCanvas();
+      }
+    },
+    [closeCanvas, currentVisao, loadVisoes]
+  );
 
   const handleCreateNode = useCallback(
-    async ({ nome, tipo }: { nome: string; tipo: NodeOptionType }) => {
+    async ({ nome, tipo }: { nome: string; tipo: FlowType }) => {
+      if (!currentVisao) return;
+
       const res = await axios.post(`${API_URL}/fluxo/no`, {
-        visaoId: currentVisao,
+        visaoId: currentVisao.id,
         nome,
         tipo
       });
 
-      setNodes((nds) => nds.concat(res.data));
-      setSelectedNodeId(res.data.id);
+      setNodes((prev) => prev.concat(res.data));
     },
     [currentVisao, setNodes]
   );
@@ -260,8 +361,8 @@ export default function App() {
         nome: nextName
       });
 
-      setNodes((nds) =>
-        nds.map((node) =>
+      setNodes((prev) =>
+        prev.map((node) =>
           node.id === nodeId
             ? {
                 ...node,
@@ -276,31 +377,37 @@ export default function App() {
 
   const handleDeleteNode = useCallback(
     async (nodeId: string) => {
-      const confirmacao = window.confirm('Deseja realmente remover este item do fluxo?');
-      if (!confirmacao) return;
-
       await axios.delete(`${API_URL}/fluxo/no/${nodeId}`);
-      setNodes((nds) => nds.filter((node) => node.id !== nodeId));
-      setEdges((eds) => eds.filter((edge) => edge.source !== nodeId && edge.target !== nodeId));
-      if (selectedNodeId === nodeId) setSelectedNodeId('');
+      setNodes((prev) => prev.filter((node) => node.id !== nodeId));
+      setEdges((prev) => prev.filter((edge) => edge.source !== nodeId && edge.target !== nodeId));
     },
-    [selectedNodeId, setEdges, setNodes]
+    [setEdges, setNodes]
   );
 
   const onConnect = useCallback(
     (params: Connection) => {
-      if (!params.source || !params.target) return;
+      if (!currentVisao || !params.source || !params.target) return;
 
       axios
         .post(`${API_URL}/fluxo/conexao`, {
-          visaoId: currentVisao,
+          visaoId: currentVisao.id,
           source: params.source,
           target: params.target
         })
-        .then(() => {
-          setEdges((eds) => addEdge({ ...params, animated: true, style: { stroke: '#4b5563' } }, eds));
+        .then((res) => {
+          setEdges((prev) =>
+            addEdge(
+              {
+                ...params,
+                id: res.data.id,
+                animated: true,
+                style: { stroke: '#4b5563' }
+              },
+              prev
+            )
+          );
         })
-        .catch((err) => alert(err.response?.data?.error || 'Erro ao conectar'));
+        .catch((error) => alert(error.response?.data?.error || 'Erro ao conectar'));
     },
     [currentVisao, setEdges]
   );
@@ -313,6 +420,38 @@ export default function App() {
     });
   }, []);
 
+  const onNodeDoubleClick = useCallback(
+    (_event: ReactMouseEvent, node: Node<FlowNodeData>) => {
+      const novoNome = window.prompt('Editar nome do item:', node.data.label);
+      if (!novoNome?.trim() || novoNome.trim() === node.data.label) return;
+      handleRenameNode(node.id, novoNome.trim()).catch((error) =>
+        alert(error.response?.data?.error || 'Erro ao renomear item')
+      );
+    },
+    [handleRenameNode]
+  );
+
+  const onNodesDelete = useCallback(
+    (nodesToDelete: Node<FlowNodeData>[]) => {
+      Promise.all(nodesToDelete.map((node) => handleDeleteNode(node.id))).catch((error) =>
+        alert(error.response?.data?.error || 'Erro ao remover item')
+      );
+    },
+    [handleDeleteNode]
+  );
+
+  const onEdgesDelete = useCallback(
+    (edgesToDelete: Edge[]) => {
+      Promise.all(edgesToDelete.map((edge) => axios.delete(`${API_URL}/fluxo/conexao/${edge.id}`)))
+        .then(() => {
+          const deletedIds = edgesToDelete.map((edge) => edge.id);
+          setEdges((prev) => prev.filter((edge) => !deletedIds.includes(edge.id)));
+        })
+        .catch((error) => alert(error.response?.data?.error || 'Erro ao remover conexão'));
+    },
+    [setEdges]
+  );
+
   const toolbar = useMemo(
     () => (
       <div className="top-toolbar">
@@ -322,8 +461,8 @@ export default function App() {
             type="button"
             className="toolbar-chip"
             onClick={() => {
-              setCreateType(option.type);
-              setIsCreateOpen(true);
+              setNodeModalType(option.type);
+              setIsNodeModalOpen(true);
             }}
             title={option.label}
             aria-label={option.label}
@@ -336,104 +475,94 @@ export default function App() {
     []
   );
 
-  const visibleNodes = useMemo(() => nodes.slice().sort((a, b) => {
-    if (a.id === selectedNodeId) return -1;
-    if (b.id === selectedNodeId) return 1;
-    return a.id.localeCompare(b.id);
-  }), [nodes, selectedNodeId]);
-
-  return (
-    <div className="app-container">
-      <main className="canvas-container">
-        {toolbar}
-
-        <div className="canvas-footer">
-          <div>
-            <strong>Auto-save</strong>
-            <span>Posição e nome salvam automaticamente no canvas.</span>
-          </div>
-          <button
-            type="button"
-            className="btn-primary"
-            onClick={() => {
-              setCreateType('tabela');
-              setIsCreateOpen(true);
-            }}
-          >
-            Criar
-          </button>
-        </div>
-
-        <ReactFlow
-          nodes={nodes}
-          edges={edges}
-          onNodesChange={onNodesChange}
-          onEdgesChange={onEdgesChange}
-          onConnect={onConnect}
-          onNodeDragStop={onNodeDragStop}
-          onNodeClick={(_event, node) => setSelectedNodeId(node.id)}
-          nodeTypes={nodeTypes}
-          fitView
-        >
-          <Background color="#2a2f3b" gap={20} size={1} />
-          <Controls />
-        </ReactFlow>
-
-        <aside className="crud-panel">
-          <div className="panel-header">
+  if (mode === 'hall') {
+    return (
+      <div className="app-container hall-screen">
+        <section className="hall-shell">
+          <header className="hall-header">
             <div>
-              <h2>CRUD</h2>
-              <p>Criar, editar e remover itens sem sair do canvas.</p>
+              <p className="eyebrow">Hall inicial</p>
+              <h1>Fluxogramas</h1>
+              <p className="hall-subtitle">
+                Crie, edite e remova os fluxogramas aqui. Clique em um painel para abrir o canvas infinito.
+              </p>
             </div>
-            <button
-              type="button"
-              className="btn-primary"
-              onClick={() => {
-                setCreateType('tabela');
-                setIsCreateOpen(true);
-              }}
-            >
-              + Criar
+
+            <button type="button" className="btn-primary" onClick={openHallCreate}>
+              + Novo painel
             </button>
-          </div>
+          </header>
 
-          <label className="field-label">
-            Visão
-            <select value={currentVisao} onChange={(event) => setCurrentVisao(event.target.value)}>
-              {visoes.map((visao) => (
-                <option key={visao.id} value={visao.id}>
-                  {visao.nome}
-                </option>
-              ))}
-            </select>
-          </label>
-
-          <div className="panel-divider" />
-
-          <div className="crud-list">
-            {visibleNodes.length === 0 ? (
-              <div className="empty-state">Nenhum item criado ainda.</div>
+          <div className="hall-grid">
+            {visoes.length === 0 ? (
+              <div className="empty-hall">
+                <div className="empty-hall-icon">📦</div>
+                <strong>Nenhum fluxograma criado ainda</strong>
+                <p>Comece criando o primeiro painel para abrir o canvas depois.</p>
+                <button type="button" className="btn-primary" onClick={openHallCreate}>
+                  Criar painel
+                </button>
+              </div>
             ) : (
-              visibleNodes.map((node) => (
-              <NodeEditor
-                  key={node.id}
-                  node={node}
-                  selected={node.id === selectedNodeId}
-                  onSelect={setSelectedNodeId}
-                  onRename={handleRenameNode}
-                  onDelete={handleDeleteNode}
+              visoes.map((visao) => (
+                <HallCard
+                  key={visao.id}
+                  visao={visao}
+                  onOpen={openCanvas}
+                  onEdit={openHallEdit}
+                  onDelete={handleDeleteVisao}
                 />
               ))
             )}
           </div>
-        </aside>
-      </main>
+        </section>
 
-      <CreateModal
-        isOpen={isCreateOpen}
-        initialType={createType}
-        onClose={() => setIsCreateOpen(false)}
-        onCreate={handleCreateNode}
+        <HallModal
+          open={isHallModalOpen}
+          title={hallModalMode === 'create' ? 'Novo fluxograma' : 'Editar fluxograma'}
+          description={
+            hallModalMode === 'create'
+              ? 'Dê um nome ao novo painel do hall.'
+              : 'Atualize o nome do fluxograma selecionado.'
+          }
+          initialValue={editingVisao?.nome ?? ''}
+          submitLabel={hallModalMode === 'create' ? 'Criar painel' : 'Salvar alterações'}
+          onClose={() => setIsHallModalOpen(false)}
+          onSubmit={handleHallSubmit}
+        />
+      </div>
+    );
+  }
+
+  return (
+    <div className="app-container canvas-screen">
+      <button type="button" className="exit-button" onClick={closeCanvas}>
+        Sair
+      </button>
+
+      {toolbar}
+
+      <ReactFlow
+        nodes={nodes}
+        edges={edges}
+        onNodesChange={onNodesChange}
+        onEdgesChange={onEdgesChange}
+        onConnect={onConnect}
+        onNodeDragStop={onNodeDragStop}
+        onNodeDoubleClick={onNodeDoubleClick}
+        onNodesDelete={onNodesDelete}
+        onEdgesDelete={onEdgesDelete}
+        nodeTypes={nodeTypes}
+        fitView
+      >
+        <Background color="#2a2f3b" gap={20} size={1} />
+      </ReactFlow>
+
+      <NodeModal
+        open={isNodeModalOpen}
+        initialType={nodeModalType}
+        onClose={() => setIsNodeModalOpen(false)}
+        onSubmit={handleCreateNode}
       />
     </div>
   );

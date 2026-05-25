@@ -81,6 +81,39 @@ export default function App() {
     });
   }, []);
 
+  // 1. Duplo clique para editar nome do nó
+  const onNodeDoubleClick = useCallback((_event: React.MouseEvent, node: any) => {
+    const novoNome = window.prompt('Editar nome do componente / tabela:', node.data.label);
+    if (novoNome && novoNome.trim() && novoNome !== node.data.label) {
+      axios.patch(`${API_URL}/fluxo/no/nome`, {
+        noId: node.id,
+        nome: novoNome.trim()
+      }).then(() => {
+        setNodes((nds) => nds.map((n) => {
+          if (n.id === node.id) {
+            return { ...n, data: { ...n.data, label: novoNome.trim() } };
+          }
+          return n;
+        }));
+      }).catch(err => alert(err.response?.data?.error || 'Erro ao renomear item'));
+    }
+  }, [setNodes]);
+
+  // 2. Tecla Delete/Backspace para apagar nós selecionados
+  const onNodesDelete = useCallback((nodesToDelete: any[]) => {
+    const confirmacao = window.confirm('Deseja realmente remover o(s) elemento(s) selecionado(s) do fluxo?');
+    if (!confirmacao) return;
+
+    Promise.all(
+      nodesToDelete.map(node => axios.delete(`${API_URL}/fluxo/no/${node.id}`))
+    ).then(() => {
+      const deletedIds = nodesToDelete.map(n => n.id);
+      // Remove do estado os nós e as conexões associadas
+      setNodes((nds) => nds.filter((n) => !deletedIds.includes(n.id)));
+      setEdges((eds) => eds.filter((e) => !deletedIds.includes(e.source) && !deletedIds.includes(e.target)));
+    }).catch(err => alert(err.response?.data?.error || 'Erro ao remover item'));
+  }, [setNodes, setEdges]);
+
   const handleAddNode = (e: React.FormEvent) => {
     e.preventDefault();
     if (!novoNome.trim()) return;
@@ -145,6 +178,8 @@ export default function App() {
           onEdgesChange={onEdgesChange}
           onConnect={onConnect}
           onNodeDragStop={onNodeDragStop}
+          onNodeDoubleClick={onNodeDoubleClick}
+          onNodesDelete={onNodesDelete}
           nodeTypes={nodeTypes}
           fitView
         >

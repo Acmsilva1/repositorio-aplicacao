@@ -111,8 +111,35 @@ app.patch('/api/fluxo/no/posicao', async (req, res) => {
     .update({ posicao_x, posicao_y })
     .eq('id', noId);
 
-  if (error) return res.status(4000).json({ error: error.message });
+  if (error) return res.status(400).json({ error: error.message });
   res.sendStatus(204);
+});
+
+// 5.1 CRUD: EDITAR NOME DO COMPONENTE
+app.patch('/api/fluxo/no/nome', async (req, res) => {
+  try {
+    const { noId, nome } = req.body;
+
+    // Busca o componente_id correspondente à instância do nó
+    const { data: no, error: errNo } = await supabase
+      .from('fluxo_nos_posicoes')
+      .select('componente_id')
+      .eq('id', noId)
+      .single();
+
+    if (errNo || !no) return res.status(400).json({ error: errNo?.message || 'Nó não encontrado' });
+
+    // Atualiza o nome do componente no catálogo
+    const { error: errComp } = await supabase
+      .from('catalogo_componentes')
+      .update({ nome })
+      .eq('id', no.componente_id);
+
+    if (errComp) return res.status(400).json({ error: errComp.message });
+    res.sendStatus(204);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
 });
 
 // 6. CRUD: REMOVER INSTÂNCIA DO FLUXO (E CASCASE EDGES)

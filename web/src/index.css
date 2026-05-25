@@ -372,6 +372,8 @@ input {
 }
 
 .custom-node {
+  position: relative;
+  overflow: visible;
   min-width: 160px;
   padding: 14px 16px;
   border-radius: 16px;

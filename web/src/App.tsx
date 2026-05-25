@@ -51,10 +51,28 @@ function CanvasNode({ data, type }: NodeProps<FlowNodeData>) {
 
   return (
     <div className={`custom-node ${option.className}`}>
-      <Handle type="target" position={Position.Left} style={{ background: '#64748b', width: 8, height: 8 }} />
+      <Handle
+        type="target"
+        position={Position.Top}
+        style={{ background: '#64748b', width: 8, height: 8, top: -4 }}
+      />
+      <Handle
+        type="target"
+        position={Position.Left}
+        style={{ background: '#64748b', width: 8, height: 8, left: -4 }}
+      />
       <div className="node-emoji">{option.emoji}</div>
       <div className="node-label">{data.label}</div>
-      <Handle type="source" position={Position.Right} style={{ background: '#64748b', width: 8, height: 8 }} />
+      <Handle
+        type="source"
+        position={Position.Right}
+        style={{ background: '#64748b', width: 8, height: 8, right: -4 }}
+      />
+      <Handle
+        type="source"
+        position={Position.Bottom}
+        style={{ background: '#64748b', width: 8, height: 8, bottom: -4 }}
+      />
     </div>
   );
 }

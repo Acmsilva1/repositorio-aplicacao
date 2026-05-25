@@ -3,7 +3,7 @@ import ReactFlow, { Background, Controls, useNodesState, useEdgesState, addEdge,
 import axios from 'axios';
 import 'reactflow/dist/style.css';
 
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001/api';
+const API_URL = (import.meta as any).env.VITE_API_URL || ((import.meta as any).env.DEV ? 'http://localhost:3001/api' : '/api');
 
 const nodeTypes = {
   painel: ({ data }: any) => (
@@ -73,7 +73,7 @@ export default function App() {
     }).catch(err => alert(err.response?.data?.error || 'Erro ao conectar'));
   }, [currentVisao, setEdges]);
 
-  const onNodeDragStop: NodeDragHandler = useCallback((event, node) => {
+  const onNodeDragStop: NodeDragHandler = useCallback((_event, node) => {
     axios.patch(`${API_URL}/fluxo/no/posicao`, {
       noId: node.id,
       posicao_x: node.position.x,

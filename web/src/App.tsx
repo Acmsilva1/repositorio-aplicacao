@@ -57,6 +57,33 @@ const nodeOptionByType = nodeOptions.reduce<Record<FlowType, (typeof nodeOptions
   {} as Record<FlowType, (typeof nodeOptions)[number]>
 );
 
+type HallPalette = {
+  accent: string;
+  accent2: string;
+  accent3: string;
+};
+
+const hallPalettes: HallPalette[] = [
+  { accent: '#38bdf8', accent2: '#22c55e', accent3: '#0ea5e9' },
+  { accent: '#f97316', accent2: '#fb7185', accent3: '#f59e0b' },
+  { accent: '#22c55e', accent2: '#14b8a6', accent3: '#84cc16' },
+  { accent: '#c084fc', accent2: '#8b5cf6', accent3: '#ec4899' },
+  { accent: '#06b6d4', accent2: '#3b82f6', accent3: '#67e8f9' },
+  { accent: '#f43f5e', accent2: '#fb7185', accent3: '#f59e0b' }
+];
+
+function hashString(value: string) {
+  let hash = 0;
+  for (let index = 0; index < value.length; index += 1) {
+    hash = (hash * 31 + value.charCodeAt(index)) >>> 0;
+  }
+  return hash;
+}
+
+function getHallPalette(seed: string): HallPalette {
+  return hallPalettes[hashString(seed) % hallPalettes.length];
+}
+
 function getEdgeColor(type?: string | null) {
   if (!type) return '#22c55e';
   return edgeColorByType[type as FlowType] ?? '#22c55e';
@@ -416,20 +443,26 @@ function HallCard({
   onOpen,
   onEdit,
   onDelete,
-  accent,
+  palette,
   featured = false
 }: {
   visao: VisaoItem;
   onOpen: (visao: VisaoItem) => void;
   onEdit: (visao: VisaoItem) => void;
   onDelete: (visao: VisaoItem) => void;
-  accent?: string;
+  palette: HallPalette;
   featured?: boolean;
 }) {
   return (
     <article
       className={`hall-card ${featured ? 'featured' : ''}`}
-      style={{ '--card-accent': accent ?? '#38bdf8' } as CSSProperties}
+      style={
+        {
+          '--card-accent': palette.accent,
+          '--card-accent-2': palette.accent2,
+          '--card-accent-3': palette.accent3
+        } as CSSProperties
+      }
     >
       <button className="hall-card-main" type="button" onClick={() => onOpen(visao)}>
         <div className="hall-card-orb">
@@ -756,26 +789,26 @@ export default function App() {
             ) : (
               <>
                 <div className="hall-featured-column">
-                  <HallCard
+                <HallCard
                     visao={visoes[0]}
                     onOpen={openCanvas}
                     onEdit={openHallEdit}
                     onDelete={handleDeleteVisao}
-                    accent="#38bdf8"
+                    palette={getHallPalette(visoes[0].id)}
                     featured
                   />
                 </div>
 
                 {visoes.length > 1 ? (
                   <div className="hall-side-column">
-                    {visoes.slice(1).map((visao, index) => (
+                    {visoes.slice(1).map((visao) => (
                       <HallCard
                         key={visao.id}
                         visao={visao}
                         onOpen={openCanvas}
                         onEdit={openHallEdit}
                         onDelete={handleDeleteVisao}
-                        accent={['#22c55e', '#f97316', '#c084fc', '#ec4899'][index % 4]}
+                        palette={getHallPalette(visao.id)}
                       />
                     ))}
                   </div>

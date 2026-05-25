@@ -1,8 +1,17 @@
-import { useCallback, useEffect, useMemo, useState, type FormEvent, type MouseEvent as ReactMouseEvent } from 'react';
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useState,
+  type CSSProperties,
+  type FormEvent,
+  type MouseEvent as ReactMouseEvent
+} from 'react';
 import ReactFlow, {
   addEdge,
   Background,
   Connection,
+  ConnectionMode,
   Edge,
   Handle,
   Node,
@@ -19,10 +28,10 @@ const API_URL =
   (import.meta as any).env.VITE_API_URL || ((import.meta as any).env.DEV ? 'http://localhost:3001/api' : '/api');
 
 const nodeOptions = [
-  { type: 'painel', label: 'Painel', emoji: '📊', className: 'painel-node' },
-  { type: 'componente_web', label: 'Componente Web', emoji: '💻', className: 'web-node' },
-  { type: 'service', label: 'Service / API', emoji: '⚙️', className: 'service-node' },
-  { type: 'tabela', label: 'Tabela / View', emoji: '🛢️', className: 'tabela-node' }
+  { type: 'painel', label: 'Painel', emoji: '📊', className: 'painel-node', accent: '#38bdf8' },
+  { type: 'componente_web', label: 'Componente Web', emoji: '💻', className: 'web-node', accent: '#10b981' },
+  { type: 'service', label: 'Service / API', emoji: '⚙️', className: 'service-node', accent: '#f97316' },
+  { type: 'tabela', label: 'Tabela / View', emoji: '🛢️', className: 'tabela-node', accent: '#c084fc' }
 ] as const;
 
 type FlowType = (typeof nodeOptions)[number]['type'];
@@ -39,6 +48,47 @@ const nodeOptionByType = nodeOptions.reduce<Record<FlowType, (typeof nodeOptions
   {} as Record<FlowType, (typeof nodeOptions)[number]>
 );
 
+const handleSides = ['top', 'right', 'bottom', 'left'] as const;
+type HandleSide = (typeof handleSides)[number];
+
+function getOppositeSide(side: HandleSide): HandleSide {
+  switch (side) {
+    case 'top':
+      return 'bottom';
+    case 'right':
+      return 'left';
+    case 'bottom':
+      return 'top';
+    case 'left':
+      return 'right';
+  }
+}
+
+function getHandleSide(from: { x: number; y: number }, to: { x: number; y: number }): HandleSide {
+  const deltaX = to.x - from.x;
+  const deltaY = to.y - from.y;
+
+  if (Math.abs(deltaX) >= Math.abs(deltaY)) {
+    return deltaX >= 0 ? 'right' : 'left';
+  }
+
+  return deltaY >= 0 ? 'bottom' : 'top';
+}
+
+function resolveEdgeHandles(
+  sourceNode: { position: { x: number; y: number } },
+  targetNode: { position: { x: number; y: number } },
+  params?: Connection
+) {
+  const sourceSide = (params?.sourceHandle as HandleSide | undefined) ?? getHandleSide(sourceNode.position, targetNode.position);
+  const targetSide = (params?.targetHandle as HandleSide | undefined) ?? getOppositeSide(sourceSide);
+
+  return {
+    sourceHandle: sourceSide,
+    targetHandle: targetSide
+  };
+}
+
 const nodeTypes = {
   painel: (props: NodeProps<FlowNodeData>) => <CanvasNode {...props} />,
   componente_web: (props: NodeProps<FlowNodeData>) => <CanvasNode {...props} />,
@@ -48,36 +98,37 @@ const nodeTypes = {
 
 function CanvasNode({ data, type }: NodeProps<FlowNodeData>) {
   const option = nodeOptionByType[(type as FlowType) ?? 'tabela'];
-  const handleStyle = { background: '#64748b', width: 8, height: 8 };
+  const handleStyle = { background: 'var(--node-accent)', width: 10, height: 10, border: 'none' };
+  const nodeStyle = { '--node-accent': option.accent } as CSSProperties;
 
   return (
-    <div className={`custom-node ${option.className}`}>
+    <div className={`custom-node ${option.className}`} style={nodeStyle}>
       <Handle
-        id="top-target"
-        type="target"
+        id="top"
+        type="source"
         position={Position.Top}
-        style={{ ...handleStyle, top: -4 }}
+        style={{ ...handleStyle, top: -5 }}
       />
       <Handle
-        id="left-target"
-        type="target"
+        id="right"
+        type="source"
+        position={Position.Right}
+        style={{ ...handleStyle, right: -5 }}
+      />
+      <Handle
+        id="bottom"
+        type="source"
+        position={Position.Bottom}
+        style={{ ...handleStyle, bottom: -5 }}
+      />
+      <Handle
+        id="left"
+        type="source"
         position={Position.Left}
-        style={{ ...handleStyle, left: -4 }}
+        style={{ ...handleStyle, left: -5 }}
       />
       <div className="node-emoji">{option.emoji}</div>
       <div className="node-label">{data.label}</div>
-      <Handle
-        id="right-source"
-        type="source"
-        position={Position.Right}
-        style={{ ...handleStyle, right: -4 }}
-      />
-      <Handle
-        id="bottom-source"
-        type="source"
-        position={Position.Bottom}
-        style={{ ...handleStyle, bottom: -4 }}
-      />
     </div>
   );
 }
@@ -281,11 +332,16 @@ export default function App() {
   const [currentVisao, setCurrentVisao] = useState<VisaoItem | null>(null);
   const [nodes, setNodes, onNodesChange] = useNodesState<FlowNode[]>([]);
   const [edges, setEdges, onEdgesChange] = useEdgesState<Edge[]>([]);
+  const [selectedNodeId, setSelectedNodeId] = useState<string>('');
   const [isHallModalOpen, setIsHallModalOpen] = useState(false);
   const [hallModalMode, setHallModalMode] = useState<'create' | 'edit'>('create');
   const [editingVisao, setEditingVisao] = useState<VisaoItem | null>(null);
   const [isNodeModalOpen, setIsNodeModalOpen] = useState(false);
   const [nodeModalType, setNodeModalType] = useState<FlowType>('tabela');
+  const selectedNodeType = useMemo(() => {
+    const selectedNode = nodes.find((node) => node.id === selectedNodeId);
+    return (selectedNode?.type as FlowType | undefined) ?? null;
+  }, [nodes, selectedNodeId]);
 
   const loadVisoes = useCallback(async () => {
     const res = await axios.get(`${API_URL}/visoes`);
@@ -308,6 +364,7 @@ export default function App() {
     } else {
       setNodes([]);
       setEdges([]);
+      setSelectedNodeId('');
     }
   }, [currentVisao, loadFlow, mode, setEdges, setNodes]);
 
@@ -332,6 +389,7 @@ export default function App() {
     setMode('hall');
     setCurrentVisao(null);
     setIsNodeModalOpen(false);
+    setSelectedNodeId('');
   }, []);
 
   const handleHallSubmit = useCallback(
@@ -403,13 +461,21 @@ export default function App() {
       await axios.delete(`${API_URL}/fluxo/no/${nodeId}`);
       setNodes((prev) => prev.filter((node) => node.id !== nodeId));
       setEdges((prev) => prev.filter((edge) => edge.source !== nodeId && edge.target !== nodeId));
+      if (selectedNodeId === nodeId) setSelectedNodeId('');
     },
-    [setEdges, setNodes]
+    [selectedNodeId, setEdges, setNodes]
   );
 
   const onConnect = useCallback(
     (params: Connection) => {
       if (!currentVisao || !params.source || !params.target) return;
+
+      const sourceNode = nodes.find((node) => node.id === params.source);
+      const targetNode = nodes.find((node) => node.id === params.target);
+
+      if (!sourceNode || !targetNode) return;
+
+      const resolvedHandles = resolveEdgeHandles(sourceNode, targetNode, params);
 
       axios
         .post(`${API_URL}/fluxo/conexao`, {
@@ -423,6 +489,8 @@ export default function App() {
               {
                 ...params,
                 id: res.data.id,
+                sourceHandle: resolvedHandles.sourceHandle,
+                targetHandle: resolvedHandles.targetHandle,
                 animated: true,
                 style: { stroke: '#22c55e' }
               },
@@ -432,7 +500,7 @@ export default function App() {
         })
         .catch((error) => alert(error.response?.data?.error || 'Erro ao conectar'));
     },
-    [currentVisao, setEdges]
+    [currentVisao, nodes, setEdges]
   );
 
   const onNodeDragStop: NodeDragHandler = useCallback((_event, node) => {
@@ -453,6 +521,10 @@ export default function App() {
     },
     [handleRenameNode]
   );
+
+  const onNodeClick = useCallback((_event: ReactMouseEvent, node: Node<any, string | undefined>) => {
+    setSelectedNodeId(node.id);
+  }, []);
 
   const onNodesDelete = useCallback(
     (nodesToDelete: Node<FlowNodeData>[]) => {
@@ -482,7 +554,8 @@ export default function App() {
           <button
             key={option.type}
             type="button"
-            className="toolbar-chip"
+            className={`toolbar-chip ${selectedNodeType === option.type ? 'active' : ''}`}
+            style={{ '--chip-accent': option.accent } as CSSProperties}
             onClick={() => {
               setNodeModalType(option.type);
               setIsNodeModalOpen(true);
@@ -495,7 +568,7 @@ export default function App() {
         ))}
       </div>
     ),
-    []
+    [selectedNodeType]
   );
 
   if (mode === 'hall') {
@@ -572,10 +645,12 @@ export default function App() {
         onEdgesChange={onEdgesChange}
         onConnect={onConnect}
         onNodeDragStop={onNodeDragStop}
+        onNodeClick={onNodeClick}
         onNodeDoubleClick={onNodeDoubleClick}
         onNodesDelete={onNodesDelete}
         onEdgesDelete={onEdgesDelete}
         nodeTypes={nodeTypes}
+        connectionMode={ConnectionMode.Loose}
         fitView
       >
         <Background color="#2a2f3b" gap={20} size={1} />

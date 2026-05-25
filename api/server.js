@@ -11,6 +11,67 @@ app.use(express.json());
 
 const supabase = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_ANON_KEY);
 
+function getOppositeSide(side) {
+  switch (side) {
+    case 'top':
+      return 'bottom';
+    case 'right':
+      return 'left';
+    case 'bottom':
+      return 'top';
+    case 'left':
+      return 'right';
+    default:
+      return 'right';
+  }
+}
+
+function getHandleSide(from, to) {
+  const deltaX = to.x - from.x;
+  const deltaY = to.y - from.y;
+
+  if (Math.abs(deltaX) >= Math.abs(deltaY)) {
+    return deltaX >= 0 ? 'right' : 'left';
+  }
+
+  return deltaY >= 0 ? 'bottom' : 'top';
+}
+
+function normalizePoint(node) {
+  if (!node) return null;
+
+  if (node.position && typeof node.position.x === 'number' && typeof node.position.y === 'number') {
+    return node.position;
+  }
+
+  if (typeof node.posicao_x === 'number' && typeof node.posicao_y === 'number') {
+    return { x: node.posicao_x, y: node.posicao_y };
+  }
+
+  if (typeof node.x === 'number' && typeof node.y === 'number') {
+    return { x: node.x, y: node.y };
+  }
+
+  return null;
+}
+
+function resolveConnectionHandles(sourceNode, targetNode, connection) {
+  const sourcePoint = normalizePoint(sourceNode);
+  const targetPoint = normalizePoint(targetNode);
+
+  if (!sourcePoint || !targetPoint) {
+    return {
+      sourceHandle: connection?.sourceHandle || 'right',
+      targetHandle: connection?.targetHandle || 'left'
+    };
+  }
+
+  const sourceHandle = connection?.sourceHandle || getHandleSide(sourcePoint, targetPoint);
+  const targetHandle = connection?.targetHandle || getOppositeSide(sourceHandle);
+
+  return { sourceHandle, targetHandle };
+}
+
 async function deleteFlowCascade(visaoId) {
   const { error: errConexoes } = await supabase
     .from('fluxo_conexoes')
@@ -64,6 +125,11 @@ app.get('/api/fluxo/:visaoId', async (req, res) => {
       id: edge.id,
       source: edge.origem_no_id,
       target: edge.destino_no_id,
+      ...resolveConnectionHandles(
+        nos.find(no => no.id === edge.origem_no_id),
+        nos.find(no => no.id === edge.destino_no_id),
+        edge
+      ),
       animated: true,
       style: { stroke: '#22c55e' }
     }));
@@ -158,6 +224,23 @@ app.post('/api/fluxo/no', async (req, res) => {
 // 4. CRUD: CRIAR CONEXÃO (EDGE)
 app.post('/api/fluxo/conexao', async (req, res) => {
   const { visaoId, source, target } = req.body;
+  const { data: nodes, error: errNodes } = await supabase
+    .from('fluxo_nos_posicoes')
+    .select('id, posicao_x, posicao_y')
+    .eq('visao_id', visaoId)
+    .in('id', [source, target]);
+
+  if (errNodes) return res.status(400).json({ error: errNodes.message });
+
+  const sourceNode = nodes.find(no => no.id === source);
+  const targetNode = nodes.find(no => no.id === target);
+  const resolvedHandles = sourceNode && targetNode
+    ? resolveConnectionHandles(
+        { x: sourceNode.posicao_x, y: sourceNode.posicao_y },
+        { x: targetNode.posicao_x, y: targetNode.posicao_y }
+      )
+    : {};
+
   const { data, error } = await supabase
     .from('fluxo_conexoes')
     .insert({ visao_id: visaoId, origem_no_id: source, destino_no_id: target })
@@ -165,7 +248,7 @@ app.post('/api/fluxo/conexao', async (req, res) => {
     .single();
 
   if (error) return res.status(400).json({ error: error.message });
-  res.status(201).json(data);
+  res.status(201).json({ ...data, ...resolvedHandles });
 });
 
 // 4.1 CRUD: REMOVER CONEXÃO (EDGE)

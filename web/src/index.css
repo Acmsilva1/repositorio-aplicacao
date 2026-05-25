@@ -341,16 +341,22 @@ input {
 .toolbar-chip {
   width: 48px;
   height: 48px;
-  border: 1px solid transparent;
+  border: 2px solid var(--chip-accent, rgba(148, 163, 184, 0.3));
   border-radius: 14px;
-  background: rgba(255, 255, 255, 0.04);
+  background: color-mix(in srgb, var(--chip-accent, #64748b) 14%, transparent);
   color: var(--text-main);
   cursor: pointer;
+  box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.02);
 }
 
 .toolbar-chip:hover {
-  border-color: rgba(56, 189, 248, 0.4);
-  background: rgba(56, 189, 248, 0.14);
+  transform: translateY(-1px) scale(1.03);
+}
+
+.toolbar-chip.active {
+  box-shadow:
+    0 0 0 1px rgba(255, 255, 255, 0.08),
+    0 0 0 3px color-mix(in srgb, var(--chip-accent, #64748b) 28%, transparent);
 }
 
 .toolbar-chip span {
@@ -379,8 +385,10 @@ input {
   border-radius: 16px;
   color: #fff;
   text-align: center;
-  border: 1px solid rgba(255, 255, 255, 0.12);
-  box-shadow: 0 18px 36px rgba(0, 0, 0, 0.35);
+  border: 1px solid color-mix(in srgb, var(--node-accent, #64748b) 55%, white 15%);
+  box-shadow:
+    0 18px 36px rgba(0, 0, 0, 0.35),
+    0 0 0 1px color-mix(in srgb, var(--node-accent, #64748b) 35%, transparent);
 }
 
 .node-emoji {

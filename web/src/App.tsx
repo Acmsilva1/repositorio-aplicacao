@@ -584,6 +584,7 @@ export default function App() {
   const [renamingNodeId, setRenamingNodeId] = useState('');
   const [renamingNodeName, setRenamingNodeName] = useState('');
   const [nodeModalType, setNodeModalType] = useState<FlowType>('tabela');
+  const [canvasMode, setCanvasMode] = useState<'view' | 'edit'>('view');
   const selectedNodeType = useMemo(() => {
     const selectedNode = nodes.find((node) => node.id === selectedNodeId);
     return (selectedNode?.type as FlowType | undefined) ?? null;
@@ -636,11 +637,13 @@ export default function App() {
   const openCanvas = useCallback((visao: VisaoItem) => {
     setCurrentVisao(visao);
     setMode('canvas');
+    setCanvasMode('view');
   }, []);
 
   const closeCanvas = useCallback(() => {
     setMode('hall');
     setCurrentVisao(null);
+    setCanvasMode('view');
     setIsNodeModalOpen(false);
     setIsRenameModalOpen(false);
     setRenamingNodeId('');
@@ -727,6 +730,19 @@ export default function App() {
     [handleRenameNode, renamingNodeId, renamingNodeName]
   );
 
+  const openCanvasEditMode = useCallback(() => {
+    setCanvasMode('edit');
+  }, []);
+
+  const exitCanvasEditMode = useCallback(() => {
+    setCanvasMode('view');
+    setIsNodeModalOpen(false);
+    setIsRenameModalOpen(false);
+    setRenamingNodeId('');
+    setRenamingNodeName('');
+    setSelectedNodeId('');
+  }, []);
+
   const handleDeleteNode = useCallback(
     async (nodeId: string) => {
       await axios.delete(`${API_URL}/fluxo/no/${nodeId}`);
@@ -739,6 +755,7 @@ export default function App() {
 
   const onConnect = useCallback(
     (params: Connection) => {
+      if (canvasMode !== 'edit') return;
       if (!currentVisao || !params.source || !params.target) return;
 
       const sourceId = params.source;
@@ -778,7 +795,7 @@ export default function App() {
         })
         .catch((error) => alert(error.response?.data?.error || 'Erro ao conectar'));
     },
-    [currentVisao, nodes, setEdges]
+    [canvasMode, currentVisao, nodes, setEdges]
   );
 
   const onNodeDragStop: NodeDragHandler = useCallback((_event, node) => {
@@ -791,28 +808,32 @@ export default function App() {
 
   const onNodeDoubleClick = useCallback(
     (_event: ReactMouseEvent, node: Node<FlowNodeData>) => {
+      if (canvasMode !== 'edit') return;
       setRenamingNodeId(node.id);
       setRenamingNodeName(node.data.label);
       setIsRenameModalOpen(true);
     },
-    []
+    [canvasMode]
   );
 
   const onNodeClick = useCallback((_event: ReactMouseEvent, node: Node<any, string | undefined>) => {
+    if (canvasMode !== 'edit') return;
     setSelectedNodeId(node.id);
-  }, []);
+  }, [canvasMode]);
 
   const onNodesDelete = useCallback(
     (nodesToDelete: Node<FlowNodeData>[]) => {
+      if (canvasMode !== 'edit') return;
       Promise.all(nodesToDelete.map((node) => handleDeleteNode(node.id))).catch((error) =>
         alert(error.response?.data?.error || 'Erro ao remover item')
       );
     },
-    [handleDeleteNode]
+    [canvasMode, handleDeleteNode]
   );
 
   const onEdgesDelete = useCallback(
     (edgesToDelete: Edge[]) => {
+      if (canvasMode !== 'edit') return;
       Promise.all(edgesToDelete.map((edge) => axios.delete(`${API_URL}/fluxo/conexao/${edge.id}`)))
         .then(() => {
           const deletedIds = edgesToDelete.map((edge) => edge.id);
@@ -820,7 +841,7 @@ export default function App() {
         })
         .catch((error) => alert(error.response?.data?.error || 'Erro ao remover conexão'));
     },
-    [setEdges]
+    [canvasMode, setEdges]
   );
 
   const toolbar = useMemo(
@@ -927,11 +948,20 @@ export default function App() {
 
   return (
     <div className="app-container canvas-screen">
-      <button type="button" className="exit-button" onClick={closeCanvas}>
-        Sair
-      </button>
+      <div className="canvas-top-actions">
+        <button type="button" className="exit-button" onClick={closeCanvas}>
+          Sair
+        </button>
+        <button
+          type="button"
+          className={`canvas-mode-button ${canvasMode === 'edit' ? 'active' : ''}`}
+          onClick={canvasMode === 'edit' ? exitCanvasEditMode : openCanvasEditMode}
+        >
+          {canvasMode === 'edit' ? 'Visualização' : 'Editar'}
+        </button>
+      </div>
 
-      {toolbar}
+      {canvasMode === 'edit' ? toolbar : null}
 
       <ReactFlow
         nodes={nodes}
@@ -946,6 +976,11 @@ export default function App() {
         onEdgesDelete={onEdgesDelete}
         nodeTypes={nodeTypes}
         connectionMode={ConnectionMode.Loose}
+        nodesDraggable={canvasMode === 'edit'}
+        nodesConnectable={canvasMode === 'edit'}
+        elementsSelectable={canvasMode === 'edit'}
+        nodesFocusable={canvasMode === 'edit'}
+        zoomOnDoubleClick={canvasMode === 'edit'}
         fitView
       >
         <CanvasZoomControls />

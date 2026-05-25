@@ -355,7 +355,7 @@ export default function App() {
   const [mode, setMode] = useState<FlowMode>('hall');
   const [visoes, setVisoes] = useState<VisaoItem[]>([]);
   const [currentVisao, setCurrentVisao] = useState<VisaoItem | null>(null);
-  const [nodes, setNodes, onNodesChange] = useNodesState<FlowNode[]>([]);
+  const [nodes, setNodes, onNodesChange] = useNodesState<FlowNodeData>([]);
   const [edges, setEdges, onEdgesChange] = useEdgesState<Edge[]>([]);
   const [selectedNodeId, setSelectedNodeId] = useState<string>('');
   const [isHallModalOpen, setIsHallModalOpen] = useState(false);
@@ -375,10 +375,13 @@ export default function App() {
 
   const loadFlow = useCallback(async (visaoId: string) => {
     const res = await axios.get(`${API_URL}/fluxo/${visaoId}`);
-    setNodes(res.data.nodes);
+    const flowNodes = res.data.nodes as FlowNode[];
+    const nodeTypeById = new Map(flowNodes.map((node) => [node.id, node.type]));
+
+    setNodes(flowNodes);
     setEdges(
-      res.data.edges.map((edge: Edge & { sourceColor?: string; sourceType?: string }) =>
-        applyEdgeColor(edge, edge.sourceColor || edge.sourceType)
+      res.data.edges.map((edge: Edge) =>
+        applyEdgeColor(edge, nodeTypeById.get(edge.source) ?? null)
       )
     );
   }, [setEdges, setNodes]);
@@ -526,7 +529,6 @@ export default function App() {
                   target: targetId,
                   sourceHandle: res.data.sourceHandle ?? resolvedHandles.sourceHandle,
                   targetHandle: res.data.targetHandle ?? resolvedHandles.targetHandle,
-                  sourceColor: res.data.sourceColor || getEdgeColor(sourceNodeType),
                   animated: true
                 },
                 sourceNodeType

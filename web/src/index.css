@@ -130,6 +130,18 @@ input {
   width: min(620px, 100%);
 }
 
+.modal-card-rename {
+  width: min(540px, 100%);
+  background:
+    radial-gradient(circle at top right, rgba(56, 189, 248, 0.18), transparent 30%),
+    radial-gradient(circle at bottom left, rgba(34, 197, 94, 0.12), transparent 28%),
+    rgba(11, 18, 32, 0.98);
+  box-shadow:
+    0 30px 70px rgba(2, 6, 23, 0.48),
+    0 0 0 1px rgba(148, 163, 184, 0.16),
+    inset 0 1px 0 rgba(255, 255, 255, 0.04);
+}
+
 .modal-header {
   display: flex;
   align-items: flex-start;
@@ -579,6 +591,10 @@ input {
   box-shadow: var(--shadow);
 }
 
+.toolbar-chip-wrap {
+  position: relative;
+}
+
 .toolbar-chip {
   width: 48px;
   height: 48px;
@@ -602,6 +618,51 @@ input {
 
 .toolbar-chip span {
   font-size: 22px;
+}
+
+.toolbar-tooltip {
+  position: absolute;
+  left: 50%;
+  bottom: calc(100% + 10px);
+  z-index: 60;
+  transform: translateX(-50%) translateY(4px);
+  padding: 7px 10px;
+  border: 1px solid rgba(148, 163, 184, 0.24);
+  border-radius: 999px;
+  background:
+    radial-gradient(circle at top, rgba(255, 255, 255, 0.12), transparent 55%),
+    rgba(8, 15, 31, 0.96);
+  color: #e2e8f0;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.01em;
+  white-space: nowrap;
+  opacity: 0;
+  pointer-events: none;
+  box-shadow:
+    0 14px 30px rgba(2, 6, 23, 0.38),
+    0 0 0 1px rgba(56, 189, 248, 0.12),
+    0 0 18px rgba(56, 189, 248, 0.12);
+  transition: opacity 0.18s ease, transform 0.18s ease;
+}
+
+.toolbar-tooltip::after {
+  content: '';
+  position: absolute;
+  left: 50%;
+  bottom: -5px;
+  width: 10px;
+  height: 10px;
+  transform: translateX(-50%) rotate(45deg);
+  background: rgba(8, 15, 31, 0.96);
+  border-right: 1px solid rgba(148, 163, 184, 0.24);
+  border-bottom: 1px solid rgba(148, 163, 184, 0.24);
+}
+
+.toolbar-chip-wrap:hover .toolbar-tooltip,
+.toolbar-chip-wrap:focus-within .toolbar-tooltip {
+  opacity: 1;
+  transform: translateX(-50%) translateY(0);
 }
 
 .exit-button {

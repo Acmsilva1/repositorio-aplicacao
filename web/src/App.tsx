@@ -438,6 +438,76 @@ function NodeModal({
   );
 }
 
+function NodeRenameModal({
+  open,
+  title,
+  initialValue,
+  onClose,
+  onSubmit
+}: {
+  open: boolean;
+  title: string;
+  initialValue: string;
+  onClose: () => void;
+  onSubmit: (value: string) => Promise<void>;
+}) {
+  const [draft, setDraft] = useState(initialValue);
+  const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    if (open) setDraft(initialValue);
+  }, [open, initialValue]);
+
+  if (!open) return null;
+
+  const handleSubmit = async (event: FormEvent) => {
+    event.preventDefault();
+    const value = draft.trim();
+    if (!value) return;
+
+    setSaving(true);
+    try {
+      await onSubmit(value);
+      onClose();
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <div className="modal-backdrop" onClick={onClose}>
+      <div className="modal-card modal-card-rename" onClick={(event) => event.stopPropagation()}>
+        <div className="modal-header">
+          <div>
+            <h3>{title}</h3>
+            <p>Atualize o nome do item selecionado no canvas.</p>
+          </div>
+          <button type="button" className="btn-ghost" onClick={onClose}>
+            Fechar
+          </button>
+        </div>
+
+        <form className="modal-form" onSubmit={handleSubmit}>
+          <label className="field-label">
+            Nome
+            <input
+              autoFocus
+              type="text"
+              value={draft}
+              onChange={(event) => setDraft(event.target.value)}
+              placeholder="Ex: Status das Unidades"
+            />
+          </label>
+
+          <button type="submit" className="btn-primary" disabled={saving}>
+            {saving ? 'Salvando...' : 'Salvar nome'}
+          </button>
+        </form>
+      </div>
+    </div>
+  );
+}
+
 function HallCard({
   visao,
   onOpen,
@@ -510,6 +580,9 @@ export default function App() {
   const [hallModalMode, setHallModalMode] = useState<'create' | 'edit'>('create');
   const [editingVisao, setEditingVisao] = useState<VisaoItem | null>(null);
   const [isNodeModalOpen, setIsNodeModalOpen] = useState(false);
+  const [isRenameModalOpen, setIsRenameModalOpen] = useState(false);
+  const [renamingNodeId, setRenamingNodeId] = useState('');
+  const [renamingNodeName, setRenamingNodeName] = useState('');
   const [nodeModalType, setNodeModalType] = useState<FlowType>('tabela');
   const selectedNodeType = useMemo(() => {
     const selectedNode = nodes.find((node) => node.id === selectedNodeId);
@@ -569,6 +642,9 @@ export default function App() {
     setMode('hall');
     setCurrentVisao(null);
     setIsNodeModalOpen(false);
+    setIsRenameModalOpen(false);
+    setRenamingNodeId('');
+    setRenamingNodeName('');
     setSelectedNodeId('');
   }, []);
 
@@ -636,6 +712,21 @@ export default function App() {
     [setNodes]
   );
 
+  const handleRenameSubmit = useCallback(
+    async (nextName: string) => {
+      if (!renamingNodeId || nextName === renamingNodeName) {
+        setIsRenameModalOpen(false);
+        return;
+      }
+
+      await handleRenameNode(renamingNodeId, nextName).catch((error) =>
+        alert(error.response?.data?.error || 'Erro ao renomear item')
+      );
+      setIsRenameModalOpen(false);
+    },
+    [handleRenameNode, renamingNodeId, renamingNodeName]
+  );
+
   const handleDeleteNode = useCallback(
     async (nodeId: string) => {
       await axios.delete(`${API_URL}/fluxo/no/${nodeId}`);
@@ -700,13 +791,11 @@ export default function App() {
 
   const onNodeDoubleClick = useCallback(
     (_event: ReactMouseEvent, node: Node<FlowNodeData>) => {
-      const novoNome = window.prompt('Editar nome do item:', node.data.label);
-      if (!novoNome?.trim() || novoNome.trim() === node.data.label) return;
-      handleRenameNode(node.id, novoNome.trim()).catch((error) =>
-        alert(error.response?.data?.error || 'Erro ao renomear item')
-      );
+      setRenamingNodeId(node.id);
+      setRenamingNodeName(node.data.label);
+      setIsRenameModalOpen(true);
     },
-    [handleRenameNode]
+    []
   );
 
   const onNodeClick = useCallback((_event: ReactMouseEvent, node: Node<any, string | undefined>) => {
@@ -738,20 +827,21 @@ export default function App() {
     () => (
       <div className="top-toolbar">
         {nodeOptions.map((option) => (
-          <button
-            key={option.type}
-            type="button"
-            className={`toolbar-chip ${selectedNodeType === option.type ? 'active' : ''}`}
-            style={{ '--chip-accent': option.accent } as CSSProperties}
-            onClick={() => {
-              setNodeModalType(option.type);
-              setIsNodeModalOpen(true);
-            }}
-            title={option.label}
-            aria-label={option.label}
-          >
-            <span>{option.emoji}</span>
-          </button>
+          <div key={option.type} className="toolbar-chip-wrap">
+            <button
+              type="button"
+              className={`toolbar-chip ${selectedNodeType === option.type ? 'active' : ''}`}
+              style={{ '--chip-accent': option.accent } as CSSProperties}
+              onClick={() => {
+                setNodeModalType(option.type);
+                setIsNodeModalOpen(true);
+              }}
+              aria-label={option.label}
+            >
+              <span>{option.emoji}</span>
+            </button>
+            <span className="toolbar-tooltip">{option.label}</span>
+          </div>
         ))}
       </div>
     ),
@@ -789,7 +879,7 @@ export default function App() {
             ) : (
               <>
                 <div className="hall-featured-column">
-                <HallCard
+                  <HallCard
                     visao={visoes[0]}
                     onOpen={openCanvas}
                     onEdit={openHallEdit}
@@ -867,6 +957,18 @@ export default function App() {
         initialType={nodeModalType}
         onClose={() => setIsNodeModalOpen(false)}
         onSubmit={handleCreateNode}
+      />
+
+      <NodeRenameModal
+        open={isRenameModalOpen}
+        title="Editar nome do item"
+        initialValue={renamingNodeName}
+        onClose={() => {
+          setIsRenameModalOpen(false);
+          setRenamingNodeId('');
+          setRenamingNodeName('');
+        }}
+        onSubmit={handleRenameSubmit}
       />
     </div>
   );

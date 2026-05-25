@@ -72,6 +72,21 @@ function resolveConnectionHandles(sourceNode, targetNode, connection) {
   return { sourceHandle, targetHandle };
 }
 
+function getEdgeColorByType(tipo) {
+  switch (tipo) {
+    case 'painel':
+      return '#22c55e';
+    case 'tabela':
+      return '#3b82f6';
+    case 'componente_web':
+      return '#ec4899';
+    case 'service':
+      return '#ef4444';
+    default:
+      return '#22c55e';
+  }
+}
+
 async function deleteFlowCascade(visaoId) {
   const { error: errConexoes } = await supabase
     .from('fluxo_conexoes')
@@ -131,7 +146,8 @@ app.get('/api/fluxo/:visaoId', async (req, res) => {
         edge
       ),
       animated: true,
-      style: { stroke: '#22c55e' }
+      sourceType: nos.find(no => no.id === edge.origem_no_id)?.catalogo_componentes?.tipo,
+      style: { stroke: getEdgeColorByType(nos.find(no => no.id === edge.origem_no_id)?.catalogo_componentes?.tipo) }
     }));
 
     res.json({ nodes, edges });
@@ -234,6 +250,7 @@ app.post('/api/fluxo/conexao', async (req, res) => {
 
   const sourceNode = nodes.find(no => no.id === source);
   const targetNode = nodes.find(no => no.id === target);
+  const sourceType = sourceNode?.catalogo_componentes?.tipo;
   const resolvedHandles = sourceNode && targetNode
     ? resolveConnectionHandles(
         { x: sourceNode.posicao_x, y: sourceNode.posicao_y },
@@ -248,7 +265,7 @@ app.post('/api/fluxo/conexao', async (req, res) => {
     .single();
 
   if (error) return res.status(400).json({ error: error.message });
-  res.status(201).json({ ...data, ...resolvedHandles });
+  res.status(201).json({ ...data, ...resolvedHandles, sourceType, style: { stroke: getEdgeColorByType(sourceType) } });
 });
 
 // 4.1 CRUD: REMOVER CONEXÃO (EDGE)

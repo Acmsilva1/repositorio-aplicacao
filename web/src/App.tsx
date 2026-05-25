@@ -18,6 +18,7 @@ import ReactFlow, {
   NodeDragHandler,
   NodeProps,
   Position,
+  MarkerType,
   useEdgesState,
   useNodesState
 } from 'reactflow';
@@ -40,6 +41,13 @@ type VisaoItem = { id: string; nome: string };
 type FlowNodeData = { label: string };
 type FlowNode = Node<FlowNodeData, FlowType>;
 
+const edgeColorByType: Record<FlowType, string> = {
+  painel: '#22c55e',
+  tabela: '#3b82f6',
+  componente_web: '#ec4899',
+  service: '#ef4444'
+};
+
 const nodeOptionByType = nodeOptions.reduce<Record<FlowType, (typeof nodeOptions)[number]>>(
   (acc, option) => {
     acc[option.type] = option;
@@ -47,6 +55,11 @@ const nodeOptionByType = nodeOptions.reduce<Record<FlowType, (typeof nodeOptions
   },
   {} as Record<FlowType, (typeof nodeOptions)[number]>
 );
+
+function getEdgeColor(type?: string | null) {
+  if (!type) return '#22c55e';
+  return edgeColorByType[type as FlowType] ?? '#22c55e';
+}
 
 const handleSides = ['top', 'right', 'bottom', 'left'] as const;
 type HandleSide = (typeof handleSides)[number];
@@ -95,6 +108,18 @@ const nodeTypes = {
   service: (props: NodeProps<FlowNodeData>) => <CanvasNode {...props} />,
   tabela: (props: NodeProps<FlowNodeData>) => <CanvasNode {...props} />
 };
+
+function applyEdgeColor(edge: Edge, sourceType?: string | null) {
+  const stroke = getEdgeColor(sourceType);
+  return {
+    ...edge,
+    style: { ...(edge.style ?? {}), stroke },
+    markerEnd: {
+      type: MarkerType.ArrowClosed,
+      color: stroke
+    }
+  };
+}
 
 function CanvasNode({ data, type }: NodeProps<FlowNodeData>) {
   const option = nodeOptionByType[(type as FlowType) ?? 'tabela'];
@@ -351,7 +376,11 @@ export default function App() {
   const loadFlow = useCallback(async (visaoId: string) => {
     const res = await axios.get(`${API_URL}/fluxo/${visaoId}`);
     setNodes(res.data.nodes);
-    setEdges(res.data.edges);
+    setEdges(
+      res.data.edges.map((edge: Edge & { sourceType?: string }) =>
+        applyEdgeColor(edge, edge.sourceType)
+      )
+    );
   }, [setEdges, setNodes]);
 
   useEffect(() => {
@@ -470,8 +499,10 @@ export default function App() {
     (params: Connection) => {
       if (!currentVisao || !params.source || !params.target) return;
 
-      const sourceNode = nodes.find((node) => node.id === params.source);
-      const targetNode = nodes.find((node) => node.id === params.target);
+      const sourceId = params.source;
+      const targetId = params.target;
+      const sourceNode = nodes.find((node) => node.id === sourceId);
+      const targetNode = nodes.find((node) => node.id === targetId);
 
       if (!sourceNode || !targetNode) return;
 
@@ -480,20 +511,25 @@ export default function App() {
       axios
         .post(`${API_URL}/fluxo/conexao`, {
           visaoId: currentVisao.id,
-          source: params.source,
-          target: params.target
+          source: sourceId,
+          target: targetId
         })
         .then((res) => {
+          const sourceNodeType = nodes.find((node) => node.id === sourceId)?.type;
           setEdges((prev) =>
             addEdge(
-              {
-                ...params,
-                id: res.data.id,
-                sourceHandle: resolvedHandles.sourceHandle,
-                targetHandle: resolvedHandles.targetHandle,
-                animated: true,
-                style: { stroke: '#22c55e' }
-              },
+              applyEdgeColor(
+                {
+                  ...params,
+                  id: res.data.id,
+                  source: sourceId,
+                  target: targetId,
+                  sourceHandle: res.data.sourceHandle ?? resolvedHandles.sourceHandle,
+                  targetHandle: res.data.targetHandle ?? resolvedHandles.targetHandle,
+                  animated: true
+                },
+                sourceNodeType
+              ),
               prev
             )
           );

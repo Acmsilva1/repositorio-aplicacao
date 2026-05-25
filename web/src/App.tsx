@@ -401,7 +401,7 @@ export default function App() {
                 ...params,
                 id: res.data.id,
                 animated: true,
-                style: { stroke: '#4b5563' }
+                style: { stroke: '#22c55e' }
               },
               prev
             )

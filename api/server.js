@@ -65,7 +65,7 @@ app.get('/api/fluxo/:visaoId', async (req, res) => {
       source: edge.origem_no_id,
       target: edge.destino_no_id,
       animated: true,
-      style: { stroke: '#4b5563' }
+      style: { stroke: '#22c55e' }
     }));
 
     res.json({ nodes, edges });

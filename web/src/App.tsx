@@ -109,8 +109,8 @@ const nodeTypes = {
   tabela: (props: NodeProps<FlowNodeData>) => <CanvasNode {...props} />
 };
 
-function applyEdgeColor(edge: Edge, sourceType?: string | null) {
-  const stroke = getEdgeColor(sourceType);
+function applyEdgeColor(edge: Edge & { sourceColor?: string | null }, sourceType?: string | null) {
+  const stroke = edge.sourceColor || getEdgeColor(sourceType);
   return {
     ...edge,
     style: { ...(edge.style ?? {}), stroke },
@@ -377,8 +377,8 @@ export default function App() {
     const res = await axios.get(`${API_URL}/fluxo/${visaoId}`);
     setNodes(res.data.nodes);
     setEdges(
-      res.data.edges.map((edge: Edge & { sourceType?: string }) =>
-        applyEdgeColor(edge, edge.sourceType)
+      res.data.edges.map((edge: Edge & { sourceColor?: string; sourceType?: string }) =>
+        applyEdgeColor(edge, edge.sourceColor || edge.sourceType)
       )
     );
   }, [setEdges, setNodes]);
@@ -526,6 +526,7 @@ export default function App() {
                   target: targetId,
                   sourceHandle: res.data.sourceHandle ?? resolvedHandles.sourceHandle,
                   targetHandle: res.data.targetHandle ?? resolvedHandles.targetHandle,
+                  sourceColor: res.data.sourceColor || getEdgeColor(sourceNodeType),
                   animated: true
                 },
                 sourceNodeType

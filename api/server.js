@@ -147,6 +147,7 @@ app.get('/api/fluxo/:visaoId', async (req, res) => {
       ),
       animated: true,
       sourceType: nos.find(no => no.id === edge.origem_no_id)?.catalogo_componentes?.tipo,
+      sourceColor: getEdgeColorByType(nos.find(no => no.id === edge.origem_no_id)?.catalogo_componentes?.tipo),
       style: { stroke: getEdgeColorByType(nos.find(no => no.id === edge.origem_no_id)?.catalogo_componentes?.tipo) }
     }));
 
@@ -265,7 +266,8 @@ app.post('/api/fluxo/conexao', async (req, res) => {
     .single();
 
   if (error) return res.status(400).json({ error: error.message });
-  res.status(201).json({ ...data, ...resolvedHandles, sourceType, style: { stroke: getEdgeColorByType(sourceType) } });
+  const sourceColor = getEdgeColorByType(sourceType);
+  res.status(201).json({ ...data, ...resolvedHandles, sourceType, sourceColor, style: { stroke: sourceColor } });
 });
 
 // 4.1 CRUD: REMOVER CONEXÃO (EDGE)

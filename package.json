@@ -2,6 +2,10 @@
   "name": "linhagem-monorepo",
   "version": "1.0.0",
   "private": true,
+  "workspaces": [
+    "api",
+    "web"
+  ],
   "scripts": {
     "build": "npm run build --prefix web && mv web/dist dist"
   }

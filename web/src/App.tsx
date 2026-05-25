@@ -114,6 +114,16 @@ export default function App() {
     }).catch(err => alert(err.response?.data?.error || 'Erro ao remover item'));
   }, [setNodes, setEdges]);
 
+  // 3. Tecla Delete/Backspace para apagar conexões selecionadas
+  const onEdgesDelete = useCallback((edgesToDelete: any[]) => {
+    Promise.all(
+      edgesToDelete.map(edge => axios.delete(`${API_URL}/fluxo/conexao/${edge.id}`))
+    ).then(() => {
+      const deletedIds = edgesToDelete.map(e => e.id);
+      setEdges((eds) => eds.filter((e) => !deletedIds.includes(e.id)));
+    }).catch(err => alert(err.response?.data?.error || 'Erro ao remover conexão'));
+  }, [setEdges]);
+
   const handleAddNode = (e: React.FormEvent) => {
     e.preventDefault();
     if (!novoNome.trim()) return;
@@ -180,6 +190,7 @@ export default function App() {
           onNodeDragStop={onNodeDragStop}
           onNodeDoubleClick={onNodeDoubleClick}
           onNodesDelete={onNodesDelete}
+          onEdgesDelete={onEdgesDelete}
           nodeTypes={nodeTypes}
           fitView
         >

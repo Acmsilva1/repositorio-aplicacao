@@ -103,6 +103,13 @@ app.post('/api/fluxo/conexao', async (req, res) => {
   res.status(201).json(data);
 });
 
+// 4.1 CRUD: REMOVER CONEXÃO (EDGE)
+app.delete('/api/fluxo/conexao/:id', async (req, res) => {
+  const { error } = await supabase.from('fluxo_conexoes').delete().eq('id', req.params.id);
+  if (error) return res.status(400).json({ error: error.message });
+  res.sendStatus(204);
+});
+
 // 5. CRUD: ATUALIZAR POSIÇÃO (PATCH COM DEBOUNCE DO FRONTEND)
 app.patch('/api/fluxo/no/posicao', async (req, res) => {
   const { noId, posicao_x, posicao_y } = req.body;

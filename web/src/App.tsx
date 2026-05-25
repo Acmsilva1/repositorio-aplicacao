@@ -415,15 +415,22 @@ function HallCard({
   visao,
   onOpen,
   onEdit,
-  onDelete
+  onDelete,
+  accent,
+  featured = false
 }: {
   visao: VisaoItem;
   onOpen: (visao: VisaoItem) => void;
   onEdit: (visao: VisaoItem) => void;
   onDelete: (visao: VisaoItem) => void;
+  accent?: string;
+  featured?: boolean;
 }) {
   return (
-    <article className="hall-card">
+    <article
+      className={`hall-card ${featured ? 'featured' : ''}`}
+      style={{ '--card-accent': accent ?? '#38bdf8' } as CSSProperties}
+    >
       <button className="hall-card-main" type="button" onClick={() => onOpen(visao)}>
         <div className="hall-card-orb">
           <div className="hall-card-badge">
@@ -736,7 +743,7 @@ export default function App() {
             </button>
           </header>
 
-          <div className="hall-grid">
+          <div className="hall-stage">
             {visoes.length === 0 ? (
               <div className="empty-hall">
                 <div className="empty-hall-icon">📦</div>
@@ -747,15 +754,33 @@ export default function App() {
                 </button>
               </div>
             ) : (
-              visoes.map((visao) => (
-                <HallCard
-                  key={visao.id}
-                  visao={visao}
-                  onOpen={openCanvas}
-                  onEdit={openHallEdit}
-                  onDelete={handleDeleteVisao}
-                />
-              ))
+              <>
+                <div className="hall-featured-column">
+                  <HallCard
+                    visao={visoes[0]}
+                    onOpen={openCanvas}
+                    onEdit={openHallEdit}
+                    onDelete={handleDeleteVisao}
+                    accent="#38bdf8"
+                    featured
+                  />
+                </div>
+
+                {visoes.length > 1 ? (
+                  <div className="hall-side-column">
+                    {visoes.slice(1).map((visao, index) => (
+                      <HallCard
+                        key={visao.id}
+                        visao={visao}
+                        onOpen={openCanvas}
+                        onEdit={openHallEdit}
+                        onDelete={handleDeleteVisao}
+                        accent={['#22c55e', '#f97316', '#c084fc', '#ec4899'][index % 4]}
+                      />
+                    ))}
+                  </div>
+                ) : null}
+              </>
             )}
           </div>
         </section>

@@ -121,6 +121,83 @@ function applyEdgeColor(edge: Edge & { sourceColor?: string | null }, sourceType
   };
 }
 
+function PencilIcon() {
+  return (
+    <svg viewBox="0 0 24 24" aria-hidden="true">
+      <path
+        d="M4 16.5V20h3.5L18 9.5l-3.5-3.5L4 16.5Z"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="1.8"
+        strokeLinejoin="round"
+      />
+      <path
+        d="M13 6l3.5 3.5"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="1.8"
+        strokeLinecap="round"
+      />
+    </svg>
+  );
+}
+
+function TrashIcon() {
+  return (
+    <svg viewBox="0 0 24 24" aria-hidden="true">
+      <path
+        d="M4 7h16"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="1.8"
+        strokeLinecap="round"
+      />
+      <path
+        d="M9 7V5.5A1.5 1.5 0 0 1 10.5 4h3A1.5 1.5 0 0 1 15 5.5V7"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="1.8"
+        strokeLinejoin="round"
+      />
+      <path
+        d="M6.5 7l.7 11.2A1.8 1.8 0 0 0 9 20h6a1.8 1.8 0 0 0 1.8-1.8L17.5 7"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="1.8"
+        strokeLinejoin="round"
+      />
+      <path
+        d="M10 10v6M14 10v6"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="1.8"
+        strokeLinecap="round"
+      />
+    </svg>
+  );
+}
+
+function FolderIcon() {
+  return (
+    <svg viewBox="0 0 24 24" aria-hidden="true">
+      <path
+        d="M3.5 8.5h5l2 2H20.5a1 1 0 0 1 1 1V18a2 2 0 0 1-2 2H4.5a2 2 0 0 1-2-2V9.5a1 1 0 0 1 1-1Z"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="1.8"
+        strokeLinejoin="round"
+      />
+      <path
+        d="M3.5 8.5V6.75A1.75 1.75 0 0 1 5.25 5h4.1c.46 0 .9.18 1.23.51L12 7h7.25A1.75 1.75 0 0 1 21 8.75V10"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="1.8"
+        strokeLinejoin="round"
+      />
+    </svg>
+  );
+}
+
 function CanvasNode({ data, type }: NodeProps<FlowNodeData>) {
   const option = nodeOptionByType[(type as FlowType) ?? 'tabela'];
   const handleStyle = { background: 'var(--node-accent)', width: 10, height: 10, border: 'none' };
@@ -332,19 +409,35 @@ function HallCard({
   return (
     <article className="hall-card">
       <button className="hall-card-main" type="button" onClick={() => onOpen(visao)}>
-        <div className="hall-card-badge">📁</div>
-        <div className="hall-card-copy">
-          <strong>{visao.nome}</strong>
-          <span>ID: {visao.id}</span>
+        <div className="hall-card-orb">
+          <div className="hall-card-badge">
+            <FolderIcon />
+          </div>
+          <div className="hall-card-copy">
+            <strong>{visao.nome}</strong>
+            <span>ID: {visao.id}</span>
+          </div>
         </div>
       </button>
 
       <div className="hall-card-actions">
-        <button type="button" className="btn-ghost" onClick={() => onEdit(visao)}>
-          Editar
+        <button
+          type="button"
+          className="hall-icon-button"
+          onClick={() => onEdit(visao)}
+          aria-label={`Editar ${visao.nome}`}
+          title={`Editar ${visao.nome}`}
+        >
+          <PencilIcon />
         </button>
-        <button type="button" className="btn-ghost danger" onClick={() => onDelete(visao)}>
-          Excluir
+        <button
+          type="button"
+          className="hall-icon-button danger"
+          onClick={() => onDelete(visao)}
+          aria-label={`Excluir ${visao.nome}`}
+          title={`Excluir ${visao.nome}`}
+        >
+          <TrashIcon />
         </button>
       </div>
     </article>
@@ -704,3 +797,4 @@ export default function App() {
     </div>
   );
 }
+

@@ -48,30 +48,35 @@ const nodeTypes = {
 
 function CanvasNode({ data, type }: NodeProps<FlowNodeData>) {
   const option = nodeOptionByType[(type as FlowType) ?? 'tabela'];
+  const handleStyle = { background: '#64748b', width: 8, height: 8 };
 
   return (
     <div className={`custom-node ${option.className}`}>
       <Handle
+        id="top-target"
         type="target"
         position={Position.Top}
-        style={{ background: '#64748b', width: 8, height: 8, top: -4 }}
+        style={{ ...handleStyle, top: -4 }}
       />
       <Handle
+        id="left-target"
         type="target"
         position={Position.Left}
-        style={{ background: '#64748b', width: 8, height: 8, left: -4 }}
+        style={{ ...handleStyle, left: -4 }}
       />
       <div className="node-emoji">{option.emoji}</div>
       <div className="node-label">{data.label}</div>
       <Handle
+        id="right-source"
         type="source"
         position={Position.Right}
-        style={{ background: '#64748b', width: 8, height: 8, right: -4 }}
+        style={{ ...handleStyle, right: -4 }}
       />
       <Handle
+        id="bottom-source"
         type="source"
         position={Position.Bottom}
-        style={{ background: '#64748b', width: 8, height: 8, bottom: -4 }}
+        style={{ ...handleStyle, bottom: -4 }}
       />
     </div>
   );

@@ -1029,6 +1029,18 @@ export default function App() {
           onClose={() => setIsHallModalOpen(false)}
           onSubmit={handleHallSubmit}
         />
+
+        <DeleteConfirmModal
+          open={isDeleteModalOpen}
+          title="Excluir repositório"
+          description={`Tem certeza que deseja excluir "${deleteTarget?.nome ?? ''}"? Essa ação não pode ser desfeita.`}
+          confirmLabel="Excluir"
+          onClose={() => {
+            setIsDeleteModalOpen(false);
+            setDeleteTarget(null);
+          }}
+          onConfirm={confirmDeleteVisao}
+        />
       </div>
     );
   }
@@ -1081,30 +1093,18 @@ export default function App() {
         onSubmit={handleCreateNode}
       />
 
-        <NodeRenameModal
-          open={isRenameModalOpen}
-          title="Editar nome do item"
-          initialValue={renamingNodeName}
+      <NodeRenameModal
+        open={isRenameModalOpen}
+        title="Editar nome do item"
+        initialValue={renamingNodeName}
           onClose={() => {
             setIsRenameModalOpen(false);
             setRenamingNodeId('');
             setRenamingNodeName('');
-          }}
-          onSubmit={handleRenameSubmit}
-        />
-
-        <DeleteConfirmModal
-          open={isDeleteModalOpen}
-          title="Excluir repositório"
-          description={`Tem certeza que deseja excluir "${deleteTarget?.nome ?? ''}"? Essa ação não pode ser desfeita.`}
-          confirmLabel="Excluir"
-          onClose={() => {
-            setIsDeleteModalOpen(false);
-            setDeleteTarget(null);
-          }}
-          onConfirm={confirmDeleteVisao}
-        />
-      </div>
-    );
-  }
+        }}
+        onSubmit={handleRenameSubmit}
+      />
+    </div>
+  );
+}
 

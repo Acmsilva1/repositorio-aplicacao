@@ -63,21 +63,6 @@ type HallPalette = {
   accent3: string;
 };
 
-const hallPalettes: HallPalette[] = [
-  { accent: '#38bdf8', accent2: '#22c55e', accent3: '#0ea5e9' },
-  { accent: '#f97316', accent2: '#fb7185', accent3: '#f59e0b' },
-  { accent: '#22c55e', accent2: '#14b8a6', accent3: '#84cc16' },
-  { accent: '#c084fc', accent2: '#8b5cf6', accent3: '#ec4899' },
-  { accent: '#06b6d4', accent2: '#3b82f6', accent3: '#67e8f9' },
-  { accent: '#f43f5e', accent2: '#fb7185', accent3: '#f59e0b' },
-  { accent: '#10b981', accent2: '#34d399', accent3: '#0f766e' },
-  { accent: '#8b5cf6', accent2: '#a78bfa', accent3: '#d946ef' },
-  { accent: '#f59e0b', accent2: '#f97316', accent3: '#fde68a' },
-  { accent: '#14b8a6', accent2: '#22d3ee', accent3: '#0ea5e9' },
-  { accent: '#ef4444', accent2: '#fb7185', accent3: '#f97316' },
-  { accent: '#60a5fa', accent2: '#38bdf8', accent3: '#818cf8' }
-];
-
 function hashString(value: string) {
   let hash = 0;
   for (let index = 0; index < value.length; index += 1) {
@@ -86,13 +71,18 @@ function hashString(value: string) {
   return hash;
 }
 
-function getHallPaletteIndex(seed: string, previousIndex?: number) {
-  const baseIndex = hashString(seed) % hallPalettes.length;
-  if (previousIndex === undefined || baseIndex !== previousIndex) {
-    return baseIndex;
-  }
+function getHallPalette(seed: string): HallPalette {
+  const hash = hashString(seed);
+  const baseHue = hash % 360;
+  const accentHue = baseHue;
+  const accent2Hue = (baseHue + 34) % 360;
+  const accent3Hue = (baseHue + 158) % 360;
 
-  return (baseIndex + 1) % hallPalettes.length;
+  return {
+    accent: `hsl(${accentHue} 92% 62%)`,
+    accent2: `hsl(${accent2Hue} 84% 56%)`,
+    accent3: `hsl(${accent3Hue} 88% 58%)`
+  };
 }
 
 function getEdgeColor(type?: string | null) {
@@ -666,15 +656,10 @@ export default function App() {
   }, [hallSearch, visoes]);
 
   const hallCards = useMemo(() => {
-    let previousPaletteIndex: number | undefined;
-
     return filteredVisoes.map((visao) => {
-      const paletteIndex = getHallPaletteIndex(visao.id, previousPaletteIndex);
-      previousPaletteIndex = paletteIndex;
-
       return {
         visao,
-        palette: hallPalettes[paletteIndex]
+        palette: getHallPalette(visao.id)
       };
     });
   }, [filteredVisoes]);

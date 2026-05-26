@@ -69,7 +69,13 @@ const hallPalettes: HallPalette[] = [
   { accent: '#22c55e', accent2: '#14b8a6', accent3: '#84cc16' },
   { accent: '#c084fc', accent2: '#8b5cf6', accent3: '#ec4899' },
   { accent: '#06b6d4', accent2: '#3b82f6', accent3: '#67e8f9' },
-  { accent: '#f43f5e', accent2: '#fb7185', accent3: '#f59e0b' }
+  { accent: '#f43f5e', accent2: '#fb7185', accent3: '#f59e0b' },
+  { accent: '#10b981', accent2: '#34d399', accent3: '#0f766e' },
+  { accent: '#8b5cf6', accent2: '#a78bfa', accent3: '#d946ef' },
+  { accent: '#f59e0b', accent2: '#f97316', accent3: '#fde68a' },
+  { accent: '#14b8a6', accent2: '#22d3ee', accent3: '#0ea5e9' },
+  { accent: '#ef4444', accent2: '#fb7185', accent3: '#f97316' },
+  { accent: '#60a5fa', accent2: '#38bdf8', accent3: '#818cf8' }
 ];
 
 function hashString(value: string) {
@@ -80,8 +86,13 @@ function hashString(value: string) {
   return hash;
 }
 
-function getHallPalette(seed: string): HallPalette {
-  return hallPalettes[hashString(seed) % hallPalettes.length];
+function getHallPaletteIndex(seed: string, previousIndex?: number) {
+  const baseIndex = hashString(seed) % hallPalettes.length;
+  if (previousIndex === undefined || baseIndex !== previousIndex) {
+    return baseIndex;
+  }
+
+  return (baseIndex + 1) % hallPalettes.length;
 }
 
 function getEdgeColor(type?: string | null) {
@@ -654,6 +665,20 @@ export default function App() {
     return visoes.filter((visao) => visao.nome.toLowerCase().includes(query));
   }, [hallSearch, visoes]);
 
+  const hallCards = useMemo(() => {
+    let previousPaletteIndex: number | undefined;
+
+    return filteredVisoes.map((visao) => {
+      const paletteIndex = getHallPaletteIndex(visao.id, previousPaletteIndex);
+      previousPaletteIndex = paletteIndex;
+
+      return {
+        visao,
+        palette: hallPalettes[paletteIndex]
+      };
+    });
+  }, [filteredVisoes]);
+
   const loadVisoes = useCallback(async () => {
     const res = await axios.get(`${API_URL}/visoes`);
     setVisoes(res.data);
@@ -988,25 +1013,25 @@ export default function App() {
               <>
                 <div className="hall-featured-column">
                   <HallCard
-                    visao={filteredVisoes[0]}
+                    visao={hallCards[0].visao}
                     onOpen={openCanvas}
                     onEdit={openHallEdit}
                     onDelete={handleDeleteVisao}
-                    palette={getHallPalette(filteredVisoes[0].id)}
+                    palette={hallCards[0].palette}
                     featured
                   />
                 </div>
 
-                {filteredVisoes.length > 1 ? (
+                {hallCards.length > 1 ? (
                   <div className="hall-side-column">
-                    {filteredVisoes.slice(1).map((visao) => (
+                    {hallCards.slice(1).map(({ visao, palette }) => (
                       <HallCard
                         key={visao.id}
                         visao={visao}
                         onOpen={openCanvas}
                         onEdit={openHallEdit}
                         onDelete={handleDeleteVisao}
-                        palette={getHallPalette(visao.id)}
+                        palette={palette}
                       />
                     ))}
                   </div>

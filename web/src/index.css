@@ -9,6 +9,7 @@
   --primary-hover: #0ea5e9;
   --danger-color: #f87171;
   --shadow: 0 24px 60px rgba(0, 0, 0, 0.35);
+  --hall-card-width: 168px;
 }
 
 * {
@@ -319,7 +320,7 @@ input {
 
 .hall-stage {
   display: grid;
-  grid-template-columns: minmax(150px, 180px) minmax(0, 1fr);
+  grid-template-columns: minmax(var(--hall-card-width), 190px) minmax(0, 1fr);
   gap: 18px;
   align-items: start;
 }
@@ -330,12 +331,11 @@ input {
 }
 
 .hall-side-column {
-  display: flex;
-  flex-wrap: wrap;
-  justify-content: flex-start;
-  align-items: flex-start;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(var(--hall-card-width), var(--hall-card-width)));
+  justify-content: start;
+  align-content: start;
   gap: 12px;
-  align-content: flex-start;
 }
 
 .hall-card {
@@ -345,7 +345,7 @@ input {
   flex-direction: column;
   align-items: center;
   gap: 6px;
-  width: min(100%, 150px);
+  width: var(--hall-card-width);
   padding: 0;
   border: 0;
   border-radius: 999px;
@@ -370,7 +370,7 @@ input {
 }
 
 .hall-card.featured {
-  width: min(100%, 160px);
+  width: var(--hall-card-width);
 }
 
 .hall-card::before {
@@ -858,7 +858,7 @@ input {
   }
 
   .hall-side-column {
-    grid-template-columns: repeat(auto-fit, minmax(110px, 1fr));
+    grid-template-columns: repeat(auto-fit, minmax(var(--hall-card-width), var(--hall-card-width)));
   }
 
   .canvas-zoom-controls {
@@ -869,6 +869,10 @@ input {
 }
 
 @media (max-width: 640px) {
+  :root {
+    --hall-card-width: 150px;
+  }
+
   .hall-header {
     gap: 14px;
   }
@@ -886,10 +890,6 @@ input {
   }
 
   .hall-card {
-    width: min(100%, 148px);
-  }
-
-  .hall-card.featured {
-    width: min(100%, 156px);
+    width: var(--hall-card-width);
   }
 }

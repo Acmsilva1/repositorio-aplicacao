@@ -110,6 +110,25 @@ async function deleteFlowCascade(visaoId) {
   return errVisao;
 }
 
+async function touchVisaoUpdatedAt(visaoId) {
+  const { error } = await supabase
+    .from('fluxos_visoes')
+    .update({ updated_at: new Date().toISOString() })
+    .eq('id', visaoId);
+
+  if (error) {
+    console.warn(`Nao foi possivel atualizar updated_at da visao ${visaoId}: ${error.message}`);
+  }
+}
+
+function normalizeVisaoCategoria(categoria) {
+  if (categoria === 'painel' || categoria === 'modulo' || categoria === 'bi') {
+    return categoria;
+  }
+
+  return 'painel';
+}
+
 // 1. BUSCAR FLUXO COMPLETO (Nodes e Edges formatados para o React Flow)
 app.get('/api/fluxo/:visaoId', async (req, res) => {
   try {
@@ -166,14 +185,14 @@ app.get('/api/visoes', async (req, res) => {
 
 // 2.1 CRUD: CRIAR UMA NOVA VISÃO / HALL
 app.post('/api/visoes', async (req, res) => {
-  const { nome } = req.body;
+  const { nome, categoria } = req.body;
   if (!nome?.trim()) {
     return res.status(400).json({ error: 'Nome obrigatório' });
   }
 
   const { data, error } = await supabase
     .from('fluxos_visoes')
-    .insert({ nome: nome.trim() })
+    .insert({ nome: nome.trim(), categoria: normalizeVisaoCategoria(categoria), updated_at: new Date().toISOString() })
     .select()
     .single();
 
@@ -183,14 +202,14 @@ app.post('/api/visoes', async (req, res) => {
 
 // 2.2 CRUD: RENOMEAR UMA VISÃO / HALL
 app.patch('/api/visoes/:id', async (req, res) => {
-  const { nome } = req.body;
+  const { nome, categoria } = req.body;
   if (!nome?.trim()) {
     return res.status(400).json({ error: 'Nome obrigatório' });
   }
 
   const { data, error } = await supabase
     .from('fluxos_visoes')
-    .update({ nome: nome.trim() })
+    .update({ nome: nome.trim(), categoria: normalizeVisaoCategoria(categoria), updated_at: new Date().toISOString() })
     .eq('id', req.params.id)
     .select()
     .single();
@@ -226,6 +245,8 @@ app.post('/api/fluxo/no', async (req, res) => {
       .single();
 
     if (errNoPos) return res.status(400).json({ error: errNoPos.message });
+
+    await touchVisaoUpdatedAt(visaoId);
 
     res.status(201).json({
       id: noPos.id,
@@ -267,13 +288,25 @@ app.post('/api/fluxo/conexao', async (req, res) => {
 
   if (error) return res.status(400).json({ error: error.message });
   const sourceColor = getEdgeColorByType(sourceType);
+  await touchVisaoUpdatedAt(visaoId);
   res.status(201).json({ ...data, ...resolvedHandles, sourceType, sourceColor, style: { stroke: sourceColor } });
 });
 
 // 4.1 CRUD: REMOVER CONEXÃO (EDGE)
 app.delete('/api/fluxo/conexao/:id', async (req, res) => {
+  const { data: conexao, error: errConexao } = await supabase
+    .from('fluxo_conexoes')
+    .select('visao_id')
+    .eq('id', req.params.id)
+    .single();
+
+  if (errConexao) return res.status(400).json({ error: errConexao.message });
+
   const { error } = await supabase.from('fluxo_conexoes').delete().eq('id', req.params.id);
   if (error) return res.status(400).json({ error: error.message });
+  if (conexao?.visao_id) {
+    await touchVisaoUpdatedAt(conexao.visao_id);
+  }
   res.sendStatus(204);
 });
 
@@ -286,6 +319,16 @@ app.patch('/api/fluxo/no/posicao', async (req, res) => {
     .eq('id', noId);
 
   if (error) return res.status(400).json({ error: error.message });
+
+  const { data: no, error: errNo } = await supabase
+    .from('fluxo_nos_posicoes')
+    .select('visao_id')
+    .eq('id', noId)
+    .single();
+
+  if (errNo) return res.status(400).json({ error: errNo.message });
+  await touchVisaoUpdatedAt(no.visao_id);
+
   res.sendStatus(204);
 });
 
@@ -297,7 +340,7 @@ app.patch('/api/fluxo/no/nome', async (req, res) => {
     // Busca o componente_id correspondente à instância do nó
     const { data: no, error: errNo } = await supabase
       .from('fluxo_nos_posicoes')
-      .select('componente_id')
+      .select('componente_id, visao_id')
       .eq('id', noId)
       .single();
 
@@ -310,6 +353,7 @@ app.patch('/api/fluxo/no/nome', async (req, res) => {
       .eq('id', no.componente_id);
 
     if (errComp) return res.status(400).json({ error: errComp.message });
+    await touchVisaoUpdatedAt(no.visao_id);
     res.sendStatus(204);
   } catch (error) {
     res.status(500).json({ error: error.message });
@@ -320,6 +364,14 @@ app.patch('/api/fluxo/no/nome', async (req, res) => {
 app.delete('/api/fluxo/no/:id', async (req, res) => {
   const nodeId = req.params.id;
 
+  const { data: node, error: errNode } = await supabase
+    .from('fluxo_nos_posicoes')
+    .select('visao_id')
+    .eq('id', nodeId)
+    .single();
+
+  if (errNode) return res.status(400).json({ error: errNode.message });
+
   const { error: errEdges } = await supabase
     .from('fluxo_conexoes')
     .delete()
@@ -329,6 +381,9 @@ app.delete('/api/fluxo/no/:id', async (req, res) => {
 
   const { error } = await supabase.from('fluxo_nos_posicoes').delete().eq('id', nodeId);
   if (error) return res.status(400).json({ error: error.message });
+  if (node?.visao_id) {
+    await touchVisaoUpdatedAt(node.visao_id);
+  }
   res.sendStatus(204);
 });
 

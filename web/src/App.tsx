@@ -7,6 +7,7 @@ import {
   type FormEvent,
   type MouseEvent as ReactMouseEvent
 } from 'react';
+import { LayoutGroup, motion } from 'framer-motion';
 import ReactFlow, {
   addEdge,
   Background,
@@ -38,7 +39,8 @@ const nodeOptions = [
 
 type FlowType = (typeof nodeOptions)[number]['type'];
 type FlowMode = 'hall' | 'canvas';
-type VisaoItem = { id: string; nome: string };
+type HallCategoryId = 'painel' | 'modulo' | 'bi';
+type VisaoItem = { id: string; nome: string; categoria?: HallCategoryId | null; updated_at?: string | null };
 type FlowNodeData = { label: string };
 type FlowNode = Node<FlowNodeData, FlowType>;
 
@@ -63,6 +65,26 @@ type HallPalette = {
   accent3: string;
 };
 
+type HallCategoryOption = {
+  id: HallCategoryId;
+  label: string;
+  description: string;
+};
+
+type HallCardData = {
+  visao: VisaoItem;
+  palette: HallPalette;
+  updatedLabel: string;
+};
+
+const hallCategoryOptions: HallCategoryOption[] = [
+  { id: 'painel', label: 'Painéis', description: 'Visões executivas e operacionais' },
+  { id: 'modulo', label: 'Módulos', description: 'Partes funcionais do sistema' },
+  { id: 'bi', label: 'BI', description: 'Painéis analíticos e indicadores' }
+];
+
+const defaultHallCategory: HallCategoryId = 'painel';
+
 function hashString(value: string) {
   let hash = 0;
   for (let index = 0; index < value.length; index += 1) {
@@ -83,6 +105,32 @@ function getHallPalette(seed: string): HallPalette {
     accent2: `hsl(${accent2Hue} 84% 56%)`,
     accent3: `hsl(${accent3Hue} 88% 58%)`
   };
+}
+
+function formatHallTimestamp(value?: string | null) {
+  if (!value) {
+    return '--/-- - --:--';
+  }
+
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) {
+    return '--/-- - --:--';
+  }
+
+  const day = String(date.getDate()).padStart(2, '0');
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const hours = String(date.getHours()).padStart(2, '0');
+  const minutes = String(date.getMinutes()).padStart(2, '0');
+
+  return `${day}/${month} - ${hours}:${minutes}`;
+}
+
+function normalizeHallCategory(value?: string | null): HallCategoryId {
+  if (value === 'painel' || value === 'modulo' || value === 'bi') {
+    return value;
+  }
+
+  return defaultHallCategory;
 }
 
 function getEdgeColor(type?: string | null) {
@@ -284,6 +332,7 @@ function HallModal({
   title,
   description,
   initialValue,
+  initialCategory,
   submitLabel,
   onClose,
   onSubmit
@@ -292,16 +341,21 @@ function HallModal({
   title: string;
   description: string;
   initialValue: string;
+  initialCategory: HallCategoryId;
   submitLabel: string;
   onClose: () => void;
-  onSubmit: (value: string) => Promise<void>;
+  onSubmit: (value: { nome: string; categoria: HallCategoryId }) => Promise<void>;
 }) {
   const [draft, setDraft] = useState(initialValue);
+  const [category, setCategory] = useState<HallCategoryId>(initialCategory);
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
-    if (open) setDraft(initialValue);
-  }, [open, initialValue]);
+    if (open) {
+      setDraft(initialValue);
+      setCategory(initialCategory);
+    }
+  }, [open, initialCategory, initialValue]);
 
   if (!open) return null;
 
@@ -312,7 +366,7 @@ function HallModal({
 
     setSaving(true);
     try {
-      await onSubmit(value);
+      await onSubmit({ nome: value, categoria: category });
       onClose();
     } finally {
       setSaving(false);
@@ -343,6 +397,23 @@ function HallModal({
               placeholder="Ex: Painel x"
             />
           </label>
+
+          <div className="field-label">
+            Categoria
+            <div className="category-grid">
+              {hallCategoryOptions.map((option) => (
+                <button
+                  key={option.id}
+                  type="button"
+                  className={`category-card ${category === option.id ? 'active' : ''}`}
+                  onClick={() => setCategory(option.id)}
+                >
+                  <span className="category-card-label">{option.label}</span>
+                  <span className="category-card-description">{option.description}</span>
+                </button>
+              ))}
+            </div>
+          </div>
 
           <button type="submit" className="btn-primary" disabled={saving}>
             {saving ? 'Salvando...' : submitLabel}
@@ -570,6 +641,8 @@ function HallCard({
   onEdit,
   onDelete,
   palette,
+  updatedLabel,
+  categoryLabel,
   featured = false
 }: {
   visao: VisaoItem;
@@ -577,11 +650,20 @@ function HallCard({
   onEdit: (visao: VisaoItem) => void;
   onDelete: (visao: VisaoItem) => void;
   palette: HallPalette;
+  updatedLabel: string;
+  categoryLabel: string;
   featured?: boolean;
 }) {
   return (
-    <article
+    <motion.article
       className={`hall-card ${featured ? 'featured' : ''}`}
+      layout
+      layoutId={`hall-card-${visao.id}`}
+      initial={false}
+      transition={{
+        layout: { type: 'spring', stiffness: 540, damping: 42 },
+        opacity: { duration: 0.18 }
+      }}
       style={
         {
           '--card-accent': palette.accent,
@@ -597,6 +679,12 @@ function HallCard({
           </div>
           <div className="hall-card-copy">
             <strong>{visao.nome}</strong>
+            <span className="hall-card-category">{categoryLabel}</span>
+            <span className="hall-card-status">
+              <span className="hall-card-status-dot" aria-hidden="true" />
+              <span>Fluxograma pronto</span>
+            </span>
+            <span className="hall-card-updated">Atualizado em {updatedLabel}</span>
           </div>
         </div>
       </button>
@@ -621,7 +709,7 @@ function HallCard({
           <TrashIcon />
         </button>
       </div>
-    </article>
+    </motion.article>
   );
 }
 
@@ -655,13 +743,39 @@ export default function App() {
     return visoes.filter((visao) => visao.nome.toLowerCase().includes(query));
   }, [hallSearch, visoes]);
 
-  const hallCards = useMemo(() => {
-    return filteredVisoes.map((visao) => {
-      return {
+  const hallSections = useMemo(() => {
+    const groupedCards = new Map<HallCategoryId, HallCardData[]>();
+
+    for (const option of hallCategoryOptions) {
+      groupedCards.set(option.id, []);
+    }
+
+    for (const visao of filteredVisoes) {
+      const category = normalizeHallCategory(visao.categoria);
+      const current = groupedCards.get(category) ?? [];
+      current.push({
         visao,
-        palette: getHallPalette(visao.id)
-      };
-    });
+        palette: getHallPalette(visao.id),
+        updatedLabel: formatHallTimestamp(visao.updated_at)
+      });
+      groupedCards.set(category, current);
+    }
+
+    return hallCategoryOptions
+      .map((category) => ({
+        category,
+        cards: (groupedCards.get(category.id) ?? []).sort((left, right) => {
+          const leftTime = left.visao.updated_at ? new Date(left.visao.updated_at).getTime() : Number.NEGATIVE_INFINITY;
+          const rightTime = right.visao.updated_at ? new Date(right.visao.updated_at).getTime() : Number.NEGATIVE_INFINITY;
+
+          if (rightTime !== leftTime) {
+            return rightTime - leftTime;
+          }
+
+          return left.visao.nome.localeCompare(right.visao.nome, 'pt-BR');
+        })
+      }))
+      .filter((section) => section.cards.length > 0);
   }, [filteredVisoes]);
 
   const loadVisoes = useCallback(async () => {
@@ -725,14 +839,15 @@ export default function App() {
     setRenamingNodeId('');
     setRenamingNodeName('');
     setSelectedNodeId('');
-  }, []);
+    loadVisoes().catch((error) => alert(error.response?.data?.error || 'Erro ao carregar hall'));
+  }, [loadVisoes]);
 
   const handleHallSubmit = useCallback(
-    async (nome: string) => {
+    async ({ nome, categoria }: { nome: string; categoria: HallCategoryId }) => {
       if (hallModalMode === 'create') {
-        await axios.post(`${API_URL}/visoes`, { nome });
+        await axios.post(`${API_URL}/visoes`, { nome, categoria });
       } else if (editingVisao) {
-        await axios.patch(`${API_URL}/visoes/${editingVisao.id}`, { nome });
+        await axios.patch(`${API_URL}/visoes/${editingVisao.id}`, { nome, categoria });
       }
 
       await loadVisoes();
@@ -752,10 +867,11 @@ export default function App() {
     if (!deleteTarget) return;
 
     await axios.delete(`${API_URL}/visoes/${deleteTarget.id}`);
-    await loadVisoes();
 
     if (currentVisao?.id === deleteTarget.id) {
       closeCanvas();
+    } else {
+      await loadVisoes();
     }
 
     setIsDeleteModalOpen(false);
@@ -995,33 +1111,34 @@ export default function App() {
                 <p>Não encontrei um nome que combine com a sua busca.</p>
               </div>
             ) : (
-              <>
-                <div className="hall-featured-column">
-                  <HallCard
-                    visao={hallCards[0].visao}
-                    onOpen={openCanvas}
-                    onEdit={openHallEdit}
-                    onDelete={handleDeleteVisao}
-                    palette={hallCards[0].palette}
-                    featured
-                  />
-                </div>
+              <LayoutGroup>
+                {hallSections.map((section) => (
+                  <motion.section key={section.category.id} className="hall-category-group" layout>
+                    <div className="hall-category-header">
+                      <div className="hall-category-header-copy">
+                        <h2>{section.category.label}</h2>
+                        <p>{section.category.description}</p>
+                      </div>
+                      <span className="hall-category-count">{section.cards.length}</span>
+                    </div>
 
-                {hallCards.length > 1 ? (
-                  <div className="hall-side-column">
-                    {hallCards.slice(1).map(({ visao, palette }) => (
-                      <HallCard
-                        key={visao.id}
-                        visao={visao}
-                        onOpen={openCanvas}
-                        onEdit={openHallEdit}
-                        onDelete={handleDeleteVisao}
-                        palette={palette}
-                      />
-                    ))}
-                  </div>
-                ) : null}
-              </>
+                    <motion.div className="hall-category-grid" layout>
+                      {section.cards.map(({ visao, palette, updatedLabel }) => (
+                        <HallCard
+                          key={visao.id}
+                          visao={visao}
+                          onOpen={openCanvas}
+                          onEdit={openHallEdit}
+                          onDelete={handleDeleteVisao}
+                          palette={palette}
+                          updatedLabel={updatedLabel}
+                          categoryLabel={section.category.label}
+                        />
+                      ))}
+                    </motion.div>
+                  </motion.section>
+                ))}
+              </LayoutGroup>
             )}
           </div>
         </section>
@@ -1035,6 +1152,7 @@ export default function App() {
               : 'Atualize o nome do fluxograma selecionado.'
           }
           initialValue={editingVisao?.nome ?? ''}
+          initialCategory={normalizeHallCategory(editingVisao?.categoria)}
           submitLabel={hallModalMode === 'create' ? 'Criar painel' : 'Salvar alterações'}
           onClose={() => setIsHallModalOpen(false)}
           onSubmit={handleHallSubmit}

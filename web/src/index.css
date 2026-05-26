@@ -330,10 +330,12 @@ input {
 }
 
 .hall-side-column {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(110px, 1fr));
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-start;
+  align-items: flex-start;
   gap: 12px;
-  align-items: start;
+  align-content: flex-start;
 }
 
 .hall-card {

@@ -142,6 +142,18 @@ input {
     inset 0 1px 0 rgba(255, 255, 255, 0.04);
 }
 
+.modal-card-delete {
+  width: min(540px, 100%);
+  background:
+    radial-gradient(circle at top right, rgba(248, 113, 113, 0.16), transparent 28%),
+    radial-gradient(circle at bottom left, rgba(245, 158, 11, 0.12), transparent 28%),
+    rgba(11, 18, 32, 0.98);
+  box-shadow:
+    0 30px 70px rgba(2, 6, 23, 0.48),
+    0 0 0 1px rgba(248, 113, 113, 0.18),
+    inset 0 1px 0 rgba(255, 255, 255, 0.04);
+}
+
 .modal-header {
   display: flex;
   align-items: flex-start;
@@ -166,6 +178,21 @@ input {
   display: flex;
   flex-direction: column;
   gap: 16px;
+}
+
+.delete-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 12px;
+}
+
+.btn-primary.danger {
+  background: linear-gradient(135deg, #ef4444, #b91c1c);
+  box-shadow: 0 10px 26px rgba(239, 68, 68, 0.22);
+}
+
+.btn-primary.danger:hover {
+  transform: translateY(-1px);
 }
 
 .type-grid {

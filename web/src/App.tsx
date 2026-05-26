@@ -508,6 +508,61 @@ function NodeRenameModal({
   );
 }
 
+function DeleteConfirmModal({
+  open,
+  title,
+  description,
+  confirmLabel,
+  onClose,
+  onConfirm
+}: {
+  open: boolean;
+  title: string;
+  description: string;
+  confirmLabel: string;
+  onClose: () => void;
+  onConfirm: () => Promise<void>;
+}) {
+  const [saving, setSaving] = useState(false);
+
+  if (!open) return null;
+
+  const handleConfirm = async () => {
+    setSaving(true);
+    try {
+      await onConfirm();
+      onClose();
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <div className="modal-backdrop" onClick={onClose}>
+      <div className="modal-card modal-card-delete" onClick={(event) => event.stopPropagation()}>
+        <div className="modal-header">
+          <div>
+            <h3>{title}</h3>
+            <p>{description}</p>
+          </div>
+          <button type="button" className="btn-ghost" onClick={onClose}>
+            Fechar
+          </button>
+        </div>
+
+        <div className="delete-actions">
+          <button type="button" className="btn-ghost" onClick={onClose}>
+            Cancelar
+          </button>
+          <button type="button" className="btn-primary danger" onClick={handleConfirm} disabled={saving}>
+            {saving ? 'Excluindo...' : confirmLabel}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function HallCard({
   visao,
   onOpen,
@@ -581,6 +636,8 @@ export default function App() {
   const [editingVisao, setEditingVisao] = useState<VisaoItem | null>(null);
   const [isNodeModalOpen, setIsNodeModalOpen] = useState(false);
   const [isRenameModalOpen, setIsRenameModalOpen] = useState(false);
+  const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
+  const [deleteTarget, setDeleteTarget] = useState<VisaoItem | null>(null);
   const [renamingNodeId, setRenamingNodeId] = useState('');
   const [renamingNodeName, setRenamingNodeName] = useState('');
   const [nodeModalType, setNodeModalType] = useState<FlowType>('tabela');
@@ -653,6 +710,8 @@ export default function App() {
     setCanvasMode('view');
     setIsNodeModalOpen(false);
     setIsRenameModalOpen(false);
+    setIsDeleteModalOpen(false);
+    setDeleteTarget(null);
     setRenamingNodeId('');
     setRenamingNodeName('');
     setSelectedNodeId('');
@@ -673,18 +732,25 @@ export default function App() {
 
   const handleDeleteVisao = useCallback(
     async (visao: VisaoItem) => {
-      const confirmacao = window.confirm(`Excluir o fluxograma "${visao.nome}"?`);
-      if (!confirmacao) return;
-
-      await axios.delete(`${API_URL}/visoes/${visao.id}`);
-      await loadVisoes();
-
-      if (currentVisao?.id === visao.id) {
-        closeCanvas();
-      }
+      setDeleteTarget(visao);
+      setIsDeleteModalOpen(true);
     },
-    [closeCanvas, currentVisao, loadVisoes]
+    []
   );
+
+  const confirmDeleteVisao = useCallback(async () => {
+    if (!deleteTarget) return;
+
+    await axios.delete(`${API_URL}/visoes/${deleteTarget.id}`);
+    await loadVisoes();
+
+    if (currentVisao?.id === deleteTarget.id) {
+      closeCanvas();
+    }
+
+    setIsDeleteModalOpen(false);
+    setDeleteTarget(null);
+  }, [closeCanvas, currentVisao, deleteTarget, loadVisoes]);
 
   const handleCreateNode = useCallback(
     async ({ nome, tipo }: { nome: string; tipo: FlowType }) => {
@@ -1015,18 +1081,30 @@ export default function App() {
         onSubmit={handleCreateNode}
       />
 
-      <NodeRenameModal
-        open={isRenameModalOpen}
-        title="Editar nome do item"
-        initialValue={renamingNodeName}
-        onClose={() => {
-          setIsRenameModalOpen(false);
-          setRenamingNodeId('');
-          setRenamingNodeName('');
-        }}
-        onSubmit={handleRenameSubmit}
-      />
-    </div>
-  );
-}
+        <NodeRenameModal
+          open={isRenameModalOpen}
+          title="Editar nome do item"
+          initialValue={renamingNodeName}
+          onClose={() => {
+            setIsRenameModalOpen(false);
+            setRenamingNodeId('');
+            setRenamingNodeName('');
+          }}
+          onSubmit={handleRenameSubmit}
+        />
+
+        <DeleteConfirmModal
+          open={isDeleteModalOpen}
+          title="Excluir repositório"
+          description={`Tem certeza que deseja excluir "${deleteTarget?.nome ?? ''}"? Essa ação não pode ser desfeita.`}
+          confirmLabel="Excluir"
+          onClose={() => {
+            setIsDeleteModalOpen(false);
+            setDeleteTarget(null);
+          }}
+          onConfirm={confirmDeleteVisao}
+        />
+      </div>
+    );
+  }
 

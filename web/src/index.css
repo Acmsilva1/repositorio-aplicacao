@@ -222,31 +222,24 @@ input {
 
 .hall-header {
   display: flex;
-  align-items: flex-start;
+  align-items: center;
   justify-content: space-between;
   gap: 16px;
 }
 
-.eyebrow {
-  margin: 0 0 8px;
-  color: #67e8f9;
-  font-size: 12px;
-  font-weight: 800;
-  letter-spacing: 0.16em;
-  text-transform: uppercase;
-}
-
-.hall-header h1 {
+.hall-title {
   margin: 0;
-  font-size: clamp(30px, 5vw, 48px);
-}
-
-.hall-subtitle {
-  max-width: 720px;
-  margin: 8px 0 0;
-  color: var(--text-muted);
-  font-size: 14px;
-  line-height: 1.5;
+  max-width: 760px;
+  font-size: clamp(28px, 4.4vw, 52px);
+  font-weight: 900;
+  letter-spacing: -0.04em;
+  line-height: 0.98;
+  color: transparent;
+  background: linear-gradient(135deg, #f8fafc 0%, #7dd3fc 42%, #a78bfa 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  text-wrap: balance;
+  text-shadow: 0 0 24px rgba(56, 189, 248, 0.12);
 }
 
 .hall-stage {

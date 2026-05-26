@@ -874,13 +874,7 @@ export default function App() {
       <div className="app-container hall-screen">
         <section className="hall-shell">
           <header className="hall-header">
-            <div>
-              <p className="eyebrow">Hall inicial</p>
-              <h1>Fluxogramas</h1>
-              <p className="hall-subtitle">
-                Crie, edite e remova os fluxogramas aqui. Clique em um painel para abrir o canvas infinito.
-              </p>
-            </div>
+            <h1 className="hall-title">Repositório aplicação command center</h1>
 
             <button type="button" className="btn-primary" onClick={openHallCreate}>
               + Novo painel

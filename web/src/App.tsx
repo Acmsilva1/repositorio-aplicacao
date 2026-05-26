@@ -585,10 +585,17 @@ export default function App() {
   const [renamingNodeName, setRenamingNodeName] = useState('');
   const [nodeModalType, setNodeModalType] = useState<FlowType>('tabela');
   const [canvasMode, setCanvasMode] = useState<'view' | 'edit'>('view');
+  const [hallSearch, setHallSearch] = useState('');
   const selectedNodeType = useMemo(() => {
     const selectedNode = nodes.find((node) => node.id === selectedNodeId);
     return (selectedNode?.type as FlowType | undefined) ?? null;
   }, [nodes, selectedNodeId]);
+
+  const filteredVisoes = useMemo(() => {
+    const query = hallSearch.trim().toLowerCase();
+    if (!query) return visoes;
+    return visoes.filter((visao) => visao.nome.toLowerCase().includes(query));
+  }, [hallSearch, visoes]);
 
   const loadVisoes = useCallback(async () => {
     const res = await axios.get(`${API_URL}/visoes`);
@@ -874,7 +881,21 @@ export default function App() {
       <div className="app-container hall-screen">
         <section className="hall-shell">
           <header className="hall-header">
-            <h1 className="hall-title">Repositório aplicação command center</h1>
+            <div className="hall-header-copy">
+              <h1 className="hall-title">Repositório aplicação command center</h1>
+              <label className="hall-search">
+                <span className="hall-search-icon" aria-hidden="true">
+                  ⌕
+                </span>
+                <input
+                  type="text"
+                  value={hallSearch}
+                  onChange={(event) => setHallSearch(event.target.value)}
+                  placeholder="Buscar repositório"
+                  aria-label="Buscar repositório"
+                />
+              </label>
+            </div>
 
             <button type="button" className="btn-primary" onClick={openHallCreate}>
               + CRIAR NOVO
@@ -891,22 +912,28 @@ export default function App() {
                   Criar painel
                 </button>
               </div>
+            ) : filteredVisoes.length === 0 ? (
+              <div className="empty-hall">
+                <div className="empty-hall-icon">🔎</div>
+                <strong>Nenhum repositório encontrado</strong>
+                <p>Não encontrei um nome que combine com a sua busca.</p>
+              </div>
             ) : (
               <>
                 <div className="hall-featured-column">
                   <HallCard
-                    visao={visoes[0]}
+                    visao={filteredVisoes[0]}
                     onOpen={openCanvas}
                     onEdit={openHallEdit}
                     onDelete={handleDeleteVisao}
-                    palette={getHallPalette(visoes[0].id)}
+                    palette={getHallPalette(filteredVisoes[0].id)}
                     featured
                   />
                 </div>
 
-                {visoes.length > 1 ? (
+                {filteredVisoes.length > 1 ? (
                   <div className="hall-side-column">
-                    {visoes.slice(1).map((visao) => (
+                    {filteredVisoes.slice(1).map((visao) => (
                       <HallCard
                         key={visao.id}
                         visao={visao}

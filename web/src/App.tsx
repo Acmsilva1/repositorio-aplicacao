@@ -877,7 +877,7 @@ export default function App() {
             <h1 className="hall-title">Repositório aplicação command center</h1>
 
             <button type="button" className="btn-primary" onClick={openHallCreate}>
-              + Novo painel
+              + CRIAR NOVO
             </button>
           </header>
 

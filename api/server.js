@@ -2,6 +2,7 @@ import express from 'express';
 import cors from 'cors';
 import { createClient } from '@supabase/supabase-js';
 import dotenv from 'dotenv';
+import crypto from 'crypto';
 
 dotenv.config();
 
@@ -10,6 +11,181 @@ app.use(cors());
 app.use(express.json());
 
 const supabase = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_ANON_KEY);
+const AUTH_SECRET = process.env.APP_AUTH_SECRET || 'dev-secret-change-me';
+const AUTH_TOKEN_TTL_MS = 1000 * 60 * 60 * 12;
+const AUTH_PASSWORD_TABLE = 'app_security';
+const AUTH_PASSWORD_ROW_ID = 1;
+
+function base64UrlEncode(value) {
+  return Buffer.from(value).toString('base64url');
+}
+
+function base64UrlDecode(value) {
+  return Buffer.from(value, 'base64url').toString('utf8');
+}
+
+function signAuthPayload(payload) {
+  const encodedPayload = base64UrlEncode(JSON.stringify(payload));
+  const signature = crypto
+    .createHmac('sha256', AUTH_SECRET)
+    .update(encodedPayload)
+    .digest('base64url');
+
+  return `${encodedPayload}.${signature}`;
+}
+
+function verifyAuthToken(token) {
+  if (!token || typeof token !== 'string') return null;
+
+  const [encodedPayload, signature] = token.split('.');
+  if (!encodedPayload || !signature) return null;
+
+  const expectedSignature = crypto
+    .createHmac('sha256', AUTH_SECRET)
+    .update(encodedPayload)
+    .digest('base64url');
+
+  const provided = Buffer.from(signature);
+  const expected = Buffer.from(expectedSignature);
+
+  if (provided.length !== expected.length || !crypto.timingSafeEqual(provided, expected)) {
+    return null;
+  }
+
+  try {
+    const payload = JSON.parse(base64UrlDecode(encodedPayload));
+    if (typeof payload.exp !== 'number' || payload.exp < Date.now()) {
+      return null;
+    }
+
+    return payload;
+  } catch {
+    return null;
+  }
+}
+
+function hashPassword(password, salt = crypto.randomBytes(16).toString('hex')) {
+  const derivedKey = crypto.scryptSync(password, salt, 64).toString('hex');
+  return `scrypt$1$${salt}$${derivedKey}`;
+}
+
+function verifyPassword(password, storedHash) {
+  if (!storedHash || typeof storedHash !== 'string') return false;
+
+  const parts = storedHash.split('$');
+  if (parts.length !== 4 || parts[0] !== 'scrypt') return false;
+
+  const [, , salt, hash] = parts;
+  const derivedKey = crypto.scryptSync(password, salt, 64).toString('hex');
+
+  return crypto.timingSafeEqual(Buffer.from(derivedKey, 'hex'), Buffer.from(hash, 'hex'));
+}
+
+function extractBearerToken(req) {
+  const header = req.headers.authorization || '';
+  if (!header.startsWith('Bearer ')) return null;
+  return header.slice(7).trim();
+}
+
+async function loadPasswordRow() {
+  const { data, error } = await supabase
+    .from(AUTH_PASSWORD_TABLE)
+    .select('id, password_hash, updated_at')
+    .eq('id', AUTH_PASSWORD_ROW_ID)
+    .maybeSingle();
+
+  if (error) throw error;
+  return data;
+}
+
+async function authenticatePassword(password) {
+  let row = await loadPasswordRow();
+  if (!row?.password_hash) {
+    const bootstrapPassword = process.env.APP_INITIAL_PASSWORD;
+    if (!bootstrapPassword) {
+      return { ok: false, error: 'Tabela de senha nao configurada no banco' };
+    }
+
+    if (password !== bootstrapPassword) {
+      return { ok: false, error: 'Senha invalida' };
+    }
+
+    const { error: seedError } = await supabase
+      .from(AUTH_PASSWORD_TABLE)
+      .upsert({
+        id: AUTH_PASSWORD_ROW_ID,
+        password_hash: hashPassword(bootstrapPassword),
+        updated_at: new Date().toISOString()
+      });
+
+    if (seedError) {
+      return { ok: false, error: seedError.message };
+    }
+
+    row = await loadPasswordRow();
+    if (!row?.password_hash) {
+      return { ok: false, error: 'Nao foi possivel registrar a senha no banco' };
+    }
+  }
+
+  if (!verifyPassword(password, row.password_hash)) {
+    return { ok: false, error: 'Senha invalida' };
+  }
+
+  const token = signAuthPayload({
+    sub: String(row.id),
+    iat: Date.now(),
+    exp: Date.now() + AUTH_TOKEN_TTL_MS,
+    pwdUpdatedAt: row.updated_at
+  });
+
+  return { ok: true, token };
+}
+
+async function requireAuth(req, res, next) {
+  const token = extractBearerToken(req);
+  const payload = verifyAuthToken(token);
+
+  if (!payload) {
+    return res.status(401).json({ error: 'Nao autenticado' });
+  }
+
+  try {
+    const row = await loadPasswordRow();
+    if (!row?.updated_at || payload.pwdUpdatedAt !== row.updated_at) {
+      return res.status(401).json({ error: 'Sessao expirada' });
+    }
+
+    req.auth = payload;
+    return next();
+  } catch (error) {
+    return res.status(500).json({ error: error.message });
+  }
+}
+
+app.post('/api/auth/login', async (req, res) => {
+  try {
+    const password = String(req.body?.password ?? '');
+    if (!password.trim()) {
+      return res.status(400).json({ error: 'Senha obrigatoria' });
+    }
+
+    const result = await authenticatePassword(password.trim());
+    if (!result.ok) {
+      return res.status(401).json({ error: result.error });
+    }
+
+    return res.json({ token: result.token });
+  } catch (error) {
+    return res.status(500).json({ error: error.message });
+  }
+});
+
+app.get('/api/auth/status', requireAuth, (req, res) => {
+  res.json({ authenticated: true, session: req.auth });
+});
+
+app.use('/api', requireAuth);
 
 function getOppositeSide(side) {
   switch (side) {

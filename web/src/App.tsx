@@ -28,90 +28,7 @@ import axios from 'axios';
 import 'reactflow/dist/style.css';
 
 const API_URL =
-  (import.meta as any).env.VITE_API_URL || ((import.meta as any).env.DEV ? 'http://localhost:3001/api' : '/api');
-const AUTH_TOKEN_KEY = 'linhagem.auth.token';
-
-type AuthState = 'checking' | 'authenticated' | 'unauthenticated';
-
-function updateAxiosAuthToken(token: string) {
-  if (token) {
-    axios.defaults.headers.common.Authorization = `Bearer ${token}`;
-    return;
-  }
-
-  delete axios.defaults.headers.common.Authorization;
-}
-
-function KeyIcon() {
-  return (
-    <svg viewBox="0 0 24 24" aria-hidden="true">
-      <path
-        d="M14.5 10.5a4.5 4.5 0 1 0-3.9 4.46L12 17h2l1 1h2l1 1h2v-2l-1-1v-2l-1-1h-1.54A4.5 4.5 0 0 0 14.5 10.5Z"
-        fill="none"
-        stroke="currentColor"
-        strokeWidth="1.8"
-        strokeLinejoin="round"
-      />
-      <circle cx="10" cy="10" r="1.4" fill="none" stroke="currentColor" strokeWidth="1.8" />
-    </svg>
-  );
-}
-
-function LoginScreen({
-  password,
-  error,
-  loading,
-  onPasswordChange,
-  onSubmit
-}: {
-  password: string;
-  error: string;
-  loading: boolean;
-  onPasswordChange: (value: string) => void;
-  onSubmit: (event: FormEvent) => void;
-}) {
-  return (
-    <div className="auth-screen">
-      <motion.div
-        className="auth-card"
-        initial={{ opacity: 0, y: 18, scale: 0.98 }}
-        animate={{ opacity: 1, y: 0, scale: 1 }}
-        transition={{ duration: 0.35, ease: 'easeOut' }}
-      >
-        <div className="auth-hero">
-          <div className="auth-badge">
-            <KeyIcon />
-            <span>Acesso protegido</span>
-          </div>
-          <h1>Repositório aplicação command center</h1>
-          <p>
-            Digite a senha cadastrada no banco para liberar o hall e o canvas.
-          </p>
-        </div>
-
-        <form className="auth-form" onSubmit={onSubmit}>
-          <label className="field-label auth-field">
-            Senha de acesso
-            <input
-              autoFocus
-              type="password"
-              value={password}
-              onChange={(event) => onPasswordChange(event.target.value)}
-              placeholder="Digite a senha"
-              autoComplete="current-password"
-            />
-          </label>
-
-          {error ? <div className="auth-error">{error}</div> : null}
-
-          <button type="submit" className="btn-primary auth-submit" disabled={loading}>
-            {loading ? 'Validando...' : 'Entrar'}
-          </button>
-        </form>
-      </motion.div>
-    </div>
-  );
-}
+  (import.meta as any).env.VITE_API_URL || '/api';
 
 const nodeOptions = [
   { type: 'painel', label: 'Painel', emoji: '📊', className: 'painel-node', accent: '#38bdf8' },
@@ -815,47 +732,10 @@ export default function App() {
   const [nodeModalType, setNodeModalType] = useState<FlowType>('tabela');
   const [canvasMode, setCanvasMode] = useState<'view' | 'edit'>('view');
   const [hallSearch, setHallSearch] = useState('');
-  const [authToken, setAuthToken] = useState(() => localStorage.getItem(AUTH_TOKEN_KEY) ?? '');
-  const [authState, setAuthState] = useState<AuthState>('checking');
-  const [authPassword, setAuthPassword] = useState('');
-  const [authError, setAuthError] = useState('');
-  const [authLoading, setAuthLoading] = useState(false);
   const selectedNodeType = useMemo(() => {
     const selectedNode = nodes.find((node) => node.id === selectedNodeId);
     return (selectedNode?.type as FlowType | undefined) ?? null;
   }, [nodes, selectedNodeId]);
-
-  const resetWorkspace = useCallback(() => {
-    setMode('hall');
-    setVisoes([]);
-    setCurrentVisao(null);
-    setNodes([]);
-    setEdges([]);
-    setSelectedNodeId('');
-    setIsHallModalOpen(false);
-    setHallModalMode('create');
-    setEditingVisao(null);
-    setIsNodeModalOpen(false);
-    setIsRenameModalOpen(false);
-    setIsDeleteModalOpen(false);
-    setDeleteTarget(null);
-    setRenamingNodeId('');
-    setRenamingNodeName('');
-    setNodeModalType('tabela');
-    setCanvasMode('view');
-    setHallSearch('');
-  }, [setEdges, setNodes]);
-
-  const handleLogout = useCallback(() => {
-    localStorage.removeItem(AUTH_TOKEN_KEY);
-    setAuthToken('');
-    updateAxiosAuthToken('');
-    setAuthError('');
-    setAuthPassword('');
-    setAuthLoading(false);
-    resetWorkspace();
-    setAuthState('unauthenticated');
-  }, [resetWorkspace]);
 
   const filteredVisoes = useMemo(() => {
     const query = hallSearch.trim().toLowerCase();
@@ -917,54 +797,10 @@ export default function App() {
   }, [setEdges, setNodes]);
 
   useEffect(() => {
-    const bootstrapAuth = async () => {
-      if (!authToken) {
-        updateAxiosAuthToken('');
-        setAuthState('unauthenticated');
-        return;
-      }
-
-      updateAxiosAuthToken(authToken);
-      setAuthState('checking');
-
-      try {
-        await axios.get(`${API_URL}/auth/status`);
-        setAuthState('authenticated');
-        setAuthError('');
-      } catch {
-        handleLogout();
-      }
-    };
-
-    bootstrapAuth().catch(() => handleLogout());
-  }, [authToken, handleLogout]);
-
-  useEffect(() => {
-    const interceptor = axios.interceptors.response.use(
-      (response) => response,
-      (error) => {
-        if (error.response?.status === 401 && authToken) {
-          handleLogout();
-        }
-
-        return Promise.reject(error);
-      }
-    );
-
-    return () => {
-      axios.interceptors.response.eject(interceptor);
-    };
-  }, [authToken, handleLogout]);
-
-  useEffect(() => {
-    if (authState !== 'authenticated') return;
-
     loadVisoes().catch((error) => alert(error.response?.data?.error || 'Erro ao carregar hall'));
-  }, [authState, loadVisoes]);
+  }, [loadVisoes]);
 
   useEffect(() => {
-    if (authState !== 'authenticated') return;
-
     if (mode === 'canvas' && currentVisao) {
       loadFlow(currentVisao.id).catch((error) => alert(error.response?.data?.error || 'Erro ao carregar canvas'));
     } else {
@@ -972,7 +808,7 @@ export default function App() {
       setEdges([]);
       setSelectedNodeId('');
     }
-  }, [authState, currentVisao, loadFlow, mode, setEdges, setNodes]);
+  }, [currentVisao, loadFlow, mode, setEdges, setNodes]);
 
   const openHallCreate = useCallback(() => {
     setHallModalMode('create');
@@ -1005,36 +841,6 @@ export default function App() {
     setSelectedNodeId('');
     loadVisoes().catch((error) => alert(error.response?.data?.error || 'Erro ao carregar hall'));
   }, [loadVisoes]);
-
-  const handleLogin = useCallback(
-    async (event: FormEvent) => {
-      event.preventDefault();
-
-      const password = authPassword.trim();
-      if (!password) {
-        setAuthError('Digite a senha para continuar.');
-        return;
-      }
-
-      setAuthLoading(true);
-      setAuthError('');
-
-      try {
-        const response = await axios.post(`${API_URL}/auth/login`, { password });
-        const token = response.data.token as string;
-        localStorage.setItem(AUTH_TOKEN_KEY, token);
-        updateAxiosAuthToken(token);
-        setAuthState('checking');
-        setAuthToken(token);
-        setAuthPassword('');
-      } catch (error: any) {
-        setAuthError(error.response?.data?.error || 'Nao foi possivel autenticar');
-      } finally {
-        setAuthLoading(false);
-      }
-    },
-    [authPassword]
-  );
 
   const handleHallSubmit = useCallback(
     async ({ nome, categoria }: { nome: string; categoria: HallCategoryId }) => {
@@ -1262,18 +1068,6 @@ export default function App() {
     [selectedNodeType]
   );
 
-  if (authState !== 'authenticated') {
-    return (
-      <LoginScreen
-        password={authPassword}
-        error={authError}
-        loading={authLoading || (authState === 'checking' && Boolean(authToken))}
-        onPasswordChange={setAuthPassword}
-        onSubmit={handleLogin}
-      />
-    );
-  }
-
   if (mode === 'hall') {
     return (
       <div className="app-container hall-screen">
@@ -1296,9 +1090,6 @@ export default function App() {
             </div>
 
             <div className="hall-header-actions">
-              <button type="button" className="btn-ghost" onClick={handleLogout}>
-                Sair
-              </button>
               <button type="button" className="btn-primary" onClick={openHallCreate}>
                 + CRIAR NOVO
               </button>
@@ -1396,9 +1187,6 @@ export default function App() {
           onClick={canvasMode === 'edit' ? exitCanvasEditMode : openCanvasEditMode}
         >
           {canvasMode === 'edit' ? 'Visualização' : 'Editar'}
-        </button>
-        <button type="button" className="btn-ghost" onClick={handleLogout}>
-          Logout
         </button>
       </div>
 

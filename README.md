@@ -1,35 +1,26 @@
 # repositorio-aplicacao
 
-Aplicacao com backend Express, Supabase e frontend React/Vite.
+Aplicacao com backend Express, SQLite local e frontend React/Vite.
 
-## Autenticacao
+## Rodando localmente
 
-O acesso ao sistema agora exige senha.
+1. Execute `npm install` na raiz do projeto.
+2. Configure as variaveis de ambiente do backend, se necessario.
+3. Rode `npm run dev` na raiz.
 
-### Configuracao inicial
+O comando sobe:
+- o backend em `http://localhost:3001`
+- o frontend em `http://localhost:5190`
 
-1. Execute o SQL em [api/sql/001_app_security.sql](./api/sql/001_app_security.sql) no banco do Supabase.
-2. Garanta que exista a linha `id = 1` na tabela `public.app_security`.
-3. A senha inicial cadastrada no projeto e `123.med`.
+O frontend usa `/api` e o Vite encaminha as chamadas para o backend local.
+O banco local fica em `data/app.db` e e inicializado a partir dos CSVs em `data/` na primeira execucao.
 
-### Como trocar a senha
+### Lancador Windows
 
-Como a senha fica salva no banco, voce pode alterar direto no Supabase e a aplicacao passa a usar a nova senha na proxima autenticacao.
+- `start-repositorio-aplicacao.bat`: backend `3000` e frontend `5190`
 
-1. Atualize o campo `password_hash` da linha `id = 1` na tabela `public.app_security`.
-2. Se a senha for alterada, a sessao atual expira e o usuario precisa entrar de novo.
-
-### Fluxo do backend
-
-- `POST /api/auth/login` valida a senha informada.
-- `GET /api/auth/status` confirma se o token atual continua valido.
-- Todas as demais rotas em `/api` exigem token Bearer.
+O arquivo abre uma unica janela de terminal com o nome da aplicacao e pode ser encerrado com `Ctrl+C`.
 
 ### Variaveis de ambiente
 
-- `APP_AUTH_SECRET`: chave usada para assinar o token de sessao.
-- `APP_INITIAL_PASSWORD`: opcional, usado apenas para bootstrap caso a tabela esteja vazia.
-
-### Observacao
-
-O hash de senha usado no banco segue o formato `scrypt$1$<salt>$<derived-key>`.
+- `DATABASE_PATH`: opcional, caminho do snapshot do SQLite. Por padrao, usa `data/app.db`.

@@ -1,0 +1,87 @@
+id,nome,tipo,criado_em
+00ee87d3-6d46-4628-8f1f-f5588529d7dc,Pendências,painel,2026-05-26 13:43:41.459026+00
+013eb33f-b571-4d54-b81f-5d04ef2496a5,tbl_tempos_rx_e_ecg_total,tabela,2026-05-27 09:59:36.076918+00
+033c7ead-04c9-47ab-8837-6d2c24664c0c,Modulo Pendencias,service,2026-05-27 10:34:16.711605+00
+04d85b49-850b-4efb-99c4-1ec07c3a92b3,vw_painel_ps_base,tabela,2026-05-27 09:58:08.635511+00
+04f8917e-7086-4f97-9a42-84d25e687fd3,Pendências do sistema,painel,2026-05-26 12:36:55.020973+00
+18ae4468-ef31-4a2e-b49a-edf307525c6e,central_command.historico_unidades_pendencias,tabela,2026-05-26 13:21:28.928235+00
+19364021-b5ff-4c5b-92a1-7418412437aa,central_command.tbl_unidades_prod (grupo 2),tabela,2026-05-27 10:02:20.149615+00
+195afde7-f28d-40bb-a6fd-865de8303750,cmc_hospital.geo_cidades_hoje_snapsho,tabela,2026-05-26 14:00:22.079681+00
+1a153f65-e2c9-42bf-987f-3efea72df1f0,PsResumoUnidade.js,service,2026-05-25 18:49:15.719598+00
+1bd7dd1b-9fbe-464f-b176-58ac9d3fe265,Justificativa,painel,2026-05-26 13:32:23.692735+00
+241a5748-c5f9-4b74-96df-6688cd2e8ffa,pendenciasRoutes.js,service,2026-05-26 12:35:33.214044+00
+25833ce3-1acc-4d87-9d38-5465f648a1d7,central_command.historico_permanencia,tabela,2026-05-26 13:13:08.950186+00
+269e5292-7f47-4b96-9948-5c814bf70a37,teste,tabela,2026-05-25 14:58:51.765263+00
+2c1f5ffe-32a0-4f1f-87d1-550e6f61b667,pendenciasService.js,service,2026-05-26 12:35:22.38628+00
+2cfda7b2-5bbb-4312-a970-05a40f62d3e3,PendenciasSistemaController.js,service,2026-05-26 12:35:27.946531+00
+32c399c1-544a-4912-bc3b-0b92678baf92,AtendimentosPorUnidades.js,service,2026-05-26 11:32:51.015025+00
+33ec39e2-05b3-4026-9223-8ff6848f18e3,Alertas,painel,2026-05-26 13:17:13.993786+00
+37c563db-f3e6-4b96-9a89-5f810a50f544,central_command.alerta_analisado,tabela,2026-05-25 19:08:06.474979+00
+37cb77c3-5c1d-4f6f-83f8-b3138a00ab81,CommandCenterWrapper.jsx,componente_web,2026-05-26 12:36:42.865213+00
+3c7775a2-c633-462b-a89b-74998f4c2f5f,Taxa de ocupação detalhada,painel,2026-05-26 11:37:55.148461+00
+3d16b6de-a01d-499a-b74f-c537dc234d5e,Status das Unidades,painel,2026-05-25 18:48:18.787315+00
+3f43b48c-18f5-4a55-8146-af8bd06a03ec,cmc_hospital.taxa_ocupacao_detalhada_snapshot_prod,tabela,2026-05-26 11:58:51.87523+00
+42b991bb-df88-4b7a-9fde-649231aa4f36,GeoHeatmap.jsx,componente_web,2026-05-26 11:36:13.737887+00
+4c14535e-d12b-4d4b-90fe-7f17d94a97c4,psResumoUnidadesService.js,service,2026-05-25 18:49:24.28496+00
+4d158de8-ab4d-41d6-b7cd-99c191f9ca0c,web/features/controle-diario/lib/dashboardData.js,service,2026-05-26 13:32:32.154547+00
+4d3ecc5b-c6ef-4a84-af42-46fb035d018e,cmc_hospital.tbl_ocupacao_internacao,tabela,2026-05-26 11:58:59.589687+00
+5169dfdd-8daf-4aed-a9a9-e6ad47c3b78d,pendenciasPipelineService.js,service,2026-05-26 13:43:10.754541+00
+5236448b-a5fa-4b2a-9c75-0c465d78ebb8,acertividadeAnaliticaService.js,service,2026-05-26 13:32:57.44633+00
+5398161c-c145-4f73-9efa-b3829252a1c0,cmc_hospital.vw_painel_ps_base,tabela,2026-05-25 19:06:39.802736+00
+546ca46e-628e-4783-9eba-f91dc6a46608,central_command.historico_pendencias,tabela,2026-05-26 13:21:21.695549+00
+548ad914-4044-48dd-aad6-2489396354f5,ss,service,2026-05-25 15:02:50.561573+00
+54c259f7-dcde-450c-aad0-8be3c6feaaad,central_command.usuarios,tabela,2026-05-26 13:21:56.315647+00
+55953d74-ef2b-46eb-a87d-a67587fc3da9,central_command.alerta_analisado_log,tabela,2026-05-25 19:08:24.513563+00
+55d5be85-a81e-434c-8e22-c9e53d2063b9,cmc_hospital.tbl_tempos_rx_e_ecg_total,tabela,2026-05-26 11:30:10.114057+00
+5bb1644e-c585-43ce-b0d8-d64d673cc105,atendimentosPorUnidadesRoutes.js,service,2026-05-26 11:32:36.618621+00
+5ccd6f65-5c25-4fee-b86c-16f553488295,central_command.historico_unidades,tabela,2026-05-26 13:13:18.560935+00
+5d281681-2ee0-4f7a-adc0-ee2cfc5e1ccd,Resumo de alertas,painel,2026-05-26 12:26:50.998133+00
+5f1e8270-fa48-423a-8212-62bca483d652,TaxaOcupacaoDetalhadaController.js,service,2026-05-26 11:59:42.814698+00
+5ff9ffea-05af-4adf-91e6-cb9ab0eaad8b,cmc_hospital.meta_tempos,tabela,2026-05-25 19:07:11.465509+00
+631a304d-f624-42d2-9ba1-b1b7568f542b,cmc_hospital.vw_taxa_ocupacao_com_pacientes,tabela,2026-05-26 11:58:43.651239+00
+64c0a2c9-6f24-4d81-b92b-a10fcf411532,grupo de tabelas 3,tabela,2026-05-27 10:04:36.396366+00
+65f96e37-865d-4105-ad9e-2d12d4486752,grupo de tabelas 2,tabela,2026-05-27 10:01:14.496369+00
+689d0208-196e-4eaa-bc15-76d3701207e1,CommandCenterPanel.jsx,componente_web,2026-05-25 18:48:41.415548+00
+6ca90607-1817-4ac6-b14b-33f449bf3f56,Painel Pendencias do sistema,painel,2026-05-27 10:33:32.404311+00
+6fb0cd48-b17f-41b1-a327-d61e4be015db,AlertasResumo.jsx,componente_web,2026-05-26 12:26:42.676016+00
+7444a94f-e3d0-4037-933f-4419474e8056,cmc_hospital.ps_resumo_unidades_snapshot,tabela,2026-05-25 19:06:17.856556+00
+8005d666-ef82-4034-97bc-2480b40ac370,DashboardUnico.jsx,componente_web,2026-05-26 13:16:46.911932+00
+84f70e15-46a4-4e3e-9a30-c2ef3643edff,dashboardData.js,service,2026-05-26 13:32:54.416878+00
+8ab773e1-1b03-4511-b195-4ad3a6dafad5,central_command.controle_diario_motivos_metrica,tabela,2026-05-26 13:21:44.44847+00
+90d224ac-2189-4832-8421-87393b4f17e8,cmc_hospital.tbl_tempos_entrada_consulta_saida,tabela,2026-05-25 19:06:51.285797+00
+942e18e2-1808-4c2a-bdf9-fd80a0f3d0a6,ssd,service,2026-05-25 15:03:00.285093+00
+9669aec9-6c15-4dc5-a137-c6dd89f808e5,hospitalRoutes.js,service,2026-05-26 12:00:47.061422+00
+98a7141b-9c46-46e7-abd2-ad787dbd143b,public.alerta_analisado_log,tabela,2026-05-25 19:08:35.066811+00
+9a2598c7-9737-4b3d-9605-772135019149,cmc_hospital.vw_alertas_pacientes_ao_vivo,tabela,2026-05-26 13:13:04.771752+00
+a10b0c65-162e-4bc9-b0a6-5241812d217e,Modulo Analista,service,2026-05-27 10:33:54.968863+00
+a3e12630-6a70-4b75-8cf0-5fee0db27e51,Painel Resumo de alertas,painel,2026-05-27 10:32:39.910612+00
+a4dea768-ba6b-4fbe-822c-37ab9fa70f71,PermanenciaClinicaDetalhada.js,service,2026-05-26 12:00:38.45059+00
+a75495f1-eaca-4f70-9cc7-7783507bd1ef,atendimentosPorUnidadesService.js,service,2026-05-26 11:32:41.373027+00
+a92c5c95-8746-4434-b6e5-a1b17c58da98,ocupacaoLeitoRoutes.js,service,2026-05-26 12:00:54.222397+00
+aca3bf07-eba7-4368-adbf-3015e421e05c,taxaOcupacaoDetalhadaService.js,service,2026-05-26 11:59:31.509073+00
+b8cc98d2-3c29-44ab-81bd-5bca8f29272a,Modulo Alertas,service,2026-05-27 10:34:08.55661+00
+badc24df-0371-4ca9-9423-ee4d3becc283,app.js,service,2026-05-26 11:32:56.19064+00
+c1002240-80f5-45a7-989c-989b7b90b64f,Painel Status das unidades,painel,2026-05-27 10:29:24.275427+00
+c183d2c7-6ec4-488d-8006-9460f1d9f96a,controleDiarioRegistros.controller.js,service,2026-05-26 13:16:54.076346+00
+c377f7b6-d59e-4d25-bc58-a32da8cc7960,Atendimento hoje por estado,painel,2026-05-26 11:28:17.521568+00
+c8729687-81f2-4112-8b8d-7db0507265a5,alertasPipelineService.js,service,2026-05-26 13:16:57.264064+00
+caf7149e-7d49-42bc-90d1-50ca8419b12f,Painel Atendimento por estado,painel,2026-05-27 10:32:22.851946+00
+cca2f963-e27f-4f73-94e7-e1fff1ec3c7a,pendenciasOrquestradorService.js,service,2026-05-26 13:43:27.151537+00
+d043ac9c-d914-4f7a-8f72-b0cfb1776da8,ModoJustificativa.jsx,componente_web,2026-05-26 13:32:16.655977+00
+d0e7f44b-88da-41b0-9d3b-cba87e017b80,PendenciasSistema.jsx,componente_web,2026-05-26 12:36:15.752521+00
+d382d309-a2ad-488c-ba4e-d445fa06e5f7,AtendimentosPorUnidadesController.js,service,2026-05-26 11:32:28.456385+00
+d3e95c11-f9c5-420a-b6cf-7a6111f4e085,alertasVivoRepository.js,service,2026-05-25 18:49:34.218405+00
+d8d5fa53-3604-48cf-951b-b50a1e3e3eb8,PermanenciaClinicaDetalhadaController.js,service,2026-05-26 12:00:06.520831+00
+e22ef979-3df0-47b9-8e04-a9c8df1ae58e,TaxaOcupacaoDetalhada,componente_web,2026-05-26 12:01:09.632821+00
+e9ae408d-ac26-4bb1-905b-6d3672535d17,grupo de tabelas 1,tabela,2026-05-27 09:57:02.704906+00
+e9d16f84-86eb-46cc-ac4c-ebfe7254b076,cmc_hospital.tbl_pendencias_sistema,tabela,2026-05-26 12:35:04.526211+00
+ead5f78d-6190-4d8d-a93b-2e30e1049999,Painel Taxa de ocupacao detalhada,painel,2026-05-27 10:33:25.414822+00
+ee73d45a-cbd6-419d-a513-186607d3d921,cmc_hospital.geo_fluxo_cidade_unidade_hoje_snapshot,tabela,2026-05-26 14:00:30.596571+00
+f1b136d4-8cd3-4f00-9b79-73eea5799335,permanenciaClinicaDetalhadaService.js,service,2026-05-26 12:00:11.612186+00
+f1d784fc-f56b-4e16-8ebf-390ac6899899,api/app.js,service,2026-05-26 12:35:17.637351+00
+f28ff0b9-7ed5-4be2-86ae-4251c3f0b834,tabela,tabela,2026-05-25 14:59:02.684475+00
+f6119acc-97b2-4eb2-872c-44bbf6f7f414,analistaRepository.js,service,2026-05-26 13:20:54.382511+00
+f650ad05-8760-448c-99f3-be207e45eda7,Analista,painel,2026-05-26 13:20:39.372363+00
+f702bae2-3c24-490e-9828-ff7bc32273fa,TaxaOcupacaoDetalhada.js,service,2026-05-26 12:00:00.825743+00
+f781b972-185e-4994-bb31-6fc5ca02c8cb,central_command.tbl_unidades_prod (grupo 1),tabela,2026-05-25 19:07:38.151133+00
+fd94ce07-8ca1-41d5-bc9a-e8e1875549a6,PsResumoUnidadesController.js,service,2026-05-26 12:26:33.161581+00

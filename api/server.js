@@ -1,8 +1,12 @@
 import express from 'express';
 import cors from 'cors';
-import { createClient } from '@supabase/supabase-js';
 import dotenv from 'dotenv';
 import crypto from 'crypto';
+import { DatabaseSync } from 'node:sqlite';
+import { copyFileSync, existsSync, mkdirSync, readFileSync } from 'fs';
+import path from 'path';
+import os from 'os';
+import { fileURLToPath, pathToFileURL } from 'url';
 
 dotenv.config();
 
@@ -10,182 +14,286 @@ const app = express();
 app.use(cors());
 app.use(express.json());
 
-const supabase = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_ANON_KEY);
-const AUTH_SECRET = process.env.APP_AUTH_SECRET || 'dev-secret-change-me';
-const AUTH_TOKEN_TTL_MS = 1000 * 60 * 60 * 12;
-const AUTH_PASSWORD_TABLE = 'app_security';
-const AUTH_PASSWORD_ROW_ID = 1;
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+const ROOT_DIR = path.resolve(__dirname, '..');
+const DATA_DIR = path.resolve(process.env.DATA_DIR || path.join(ROOT_DIR, 'data'));
+const SNAPSHOT_DB_PATH = path.resolve(process.env.DATABASE_PATH || path.join(DATA_DIR, 'app.db'));
+const ACTIVE_DB_PATH = path.join(os.tmpdir(), 'repositorio-aplicacao.sqlite3');
+const VISOES_CSV = path.join(DATA_DIR, 'fluxos_visoes_rows.csv');
+const COMPONENTES_CSV = path.join(DATA_DIR, 'catalogo_componentes_rows.csv');
+const NODES_CSV = path.join(DATA_DIR, 'fluxo_nos_posicoes_rows.csv');
+const CONNECTIONS_CSV = path.join(DATA_DIR, 'fluxo_conexoes_rows.csv');
 
-function base64UrlEncode(value) {
-  return Buffer.from(value).toString('base64url');
-}
+ensureDataDirectory();
+syncDatabaseSnapshotToActive();
+const db = new DatabaseSync(ACTIVE_DB_PATH);
+db.exec('PRAGMA foreign_keys = ON;');
+db.exec('PRAGMA journal_mode = WAL;');
+db.exec('PRAGMA busy_timeout = 5000;');
+initSchema();
+seedDatabase();
+persistDatabaseSnapshot();
 
-function base64UrlDecode(value) {
-  return Buffer.from(value, 'base64url').toString('utf8');
-}
-
-function signAuthPayload(payload) {
-  const encodedPayload = base64UrlEncode(JSON.stringify(payload));
-  const signature = crypto
-    .createHmac('sha256', AUTH_SECRET)
-    .update(encodedPayload)
-    .digest('base64url');
-
-  return `${encodedPayload}.${signature}`;
-}
-
-function verifyAuthToken(token) {
-  if (!token || typeof token !== 'string') return null;
-
-  const [encodedPayload, signature] = token.split('.');
-  if (!encodedPayload || !signature) return null;
-
-  const expectedSignature = crypto
-    .createHmac('sha256', AUTH_SECRET)
-    .update(encodedPayload)
-    .digest('base64url');
-
-  const provided = Buffer.from(signature);
-  const expected = Buffer.from(expectedSignature);
-
-  if (provided.length !== expected.length || !crypto.timingSafeEqual(provided, expected)) {
-    return null;
-  }
-
-  try {
-    const payload = JSON.parse(base64UrlDecode(encodedPayload));
-    if (typeof payload.exp !== 'number' || payload.exp < Date.now()) {
-      return null;
-    }
-
-    return payload;
-  } catch {
-    return null;
+function ensureDataDirectory() {
+  if (!existsSync(DATA_DIR)) {
+    mkdirSync(DATA_DIR, { recursive: true });
   }
 }
 
-function hashPassword(password, salt = crypto.randomBytes(16).toString('hex')) {
-  const derivedKey = crypto.scryptSync(password, salt, 64).toString('hex');
-  return `scrypt$1$${salt}$${derivedKey}`;
+function syncDatabaseSnapshotToActive() {
+  if (existsSync(SNAPSHOT_DB_PATH)) {
+    mkdirSync(path.dirname(ACTIVE_DB_PATH), { recursive: true });
+    copyFileSync(SNAPSHOT_DB_PATH, ACTIVE_DB_PATH);
+  }
 }
 
-function verifyPassword(password, storedHash) {
-  if (!storedHash || typeof storedHash !== 'string') return false;
-
-  const parts = storedHash.split('$');
-  if (parts.length !== 4 || parts[0] !== 'scrypt') return false;
-
-  const [, , salt, hash] = parts;
-  const derivedKey = crypto.scryptSync(password, salt, 64).toString('hex');
-
-  return crypto.timingSafeEqual(Buffer.from(derivedKey, 'hex'), Buffer.from(hash, 'hex'));
+function nowIso() {
+  return new Date().toISOString();
 }
 
-function extractBearerToken(req) {
-  const header = req.headers.authorization || '';
-  if (!header.startsWith('Bearer ')) return null;
-  return header.slice(7).trim();
+function persistDatabaseSnapshot() {
+  mkdirSync(path.dirname(SNAPSHOT_DB_PATH), { recursive: true });
+  if (existsSync(ACTIVE_DB_PATH)) {
+    copyFileSync(ACTIVE_DB_PATH, SNAPSHOT_DB_PATH);
+  }
 }
 
-async function loadPasswordRow() {
-  const { data, error } = await supabase
-    .from(AUTH_PASSWORD_TABLE)
-    .select('id, password_hash, updated_at')
-    .eq('id', AUTH_PASSWORD_ROW_ID)
-    .maybeSingle();
+function initSchema() {
+  db.exec(`
+    PRAGMA foreign_keys = ON;
+    CREATE TABLE IF NOT EXISTS fluxos_visoes (
+      id TEXT PRIMARY KEY,
+      nome TEXT NOT NULL,
+      descricao TEXT,
+      criado_em TEXT NOT NULL,
+      categoria TEXT NOT NULL DEFAULT 'painel',
+      updated_at TEXT NOT NULL
+    );
 
-  if (error) throw error;
-  return data;
+    CREATE TABLE IF NOT EXISTS catalogo_componentes (
+      id TEXT PRIMARY KEY,
+      nome TEXT NOT NULL UNIQUE,
+      tipo TEXT NOT NULL,
+      criado_em TEXT NOT NULL
+    );
+
+    CREATE TABLE IF NOT EXISTS fluxo_nos_posicoes (
+      id TEXT PRIMARY KEY,
+      visao_id TEXT NOT NULL REFERENCES fluxos_visoes(id) ON DELETE CASCADE,
+      componente_id TEXT NOT NULL REFERENCES catalogo_componentes(id),
+      posicao_x REAL NOT NULL DEFAULT 0,
+      posicao_y REAL NOT NULL DEFAULT 0
+    );
+
+    CREATE TABLE IF NOT EXISTS fluxo_conexoes (
+      id TEXT PRIMARY KEY,
+      visao_id TEXT NOT NULL REFERENCES fluxos_visoes(id) ON DELETE CASCADE,
+      origem_no_id TEXT NOT NULL REFERENCES fluxo_nos_posicoes(id) ON DELETE CASCADE,
+      destino_no_id TEXT NOT NULL REFERENCES fluxo_nos_posicoes(id) ON DELETE CASCADE,
+      source_handle TEXT,
+      target_handle TEXT
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_fluxo_nos_visao_id ON fluxo_nos_posicoes(visao_id);
+    CREATE INDEX IF NOT EXISTS idx_fluxo_conexoes_visao_id ON fluxo_conexoes(visao_id);
+    CREATE INDEX IF NOT EXISTS idx_fluxo_conexoes_origem_no_id ON fluxo_conexoes(origem_no_id);
+    CREATE INDEX IF NOT EXISTS idx_fluxo_conexoes_destino_no_id ON fluxo_conexoes(destino_no_id);
+  `);
 }
 
-async function authenticatePassword(password) {
-  let row = await loadPasswordRow();
-  if (!row?.password_hash) {
-    const bootstrapPassword = process.env.APP_INITIAL_PASSWORD;
-    if (!bootstrapPassword) {
-      return { ok: false, error: 'Tabela de senha nao configurada no banco' };
+function parseCsvLine(line) {
+  const values = [];
+  let current = '';
+  let quoted = false;
+
+  for (let index = 0; index < line.length; index += 1) {
+    const char = line[index];
+
+    if (quoted) {
+      if (char === '"') {
+        if (line[index + 1] === '"') {
+          current += '"';
+          index += 1;
+        } else {
+          quoted = false;
+        }
+      } else {
+        current += char;
+      }
+      continue;
     }
 
-    if (password !== bootstrapPassword) {
-      return { ok: false, error: 'Senha invalida' };
+    if (char === '"') {
+      quoted = true;
+      continue;
     }
 
-    const { error: seedError } = await supabase
-      .from(AUTH_PASSWORD_TABLE)
-      .upsert({
-        id: AUTH_PASSWORD_ROW_ID,
-        password_hash: hashPassword(bootstrapPassword),
-        updated_at: new Date().toISOString()
-      });
-
-    if (seedError) {
-      return { ok: false, error: seedError.message };
+    if (char === ',') {
+      values.push(current);
+      current = '';
+      continue;
     }
 
-    row = await loadPasswordRow();
-    if (!row?.password_hash) {
-      return { ok: false, error: 'Nao foi possivel registrar a senha no banco' };
-    }
+    current += char;
   }
 
-  if (!verifyPassword(password, row.password_hash)) {
-    return { ok: false, error: 'Senha invalida' };
-  }
+  values.push(current);
+  return values;
+}
 
-  const token = signAuthPayload({
-    sub: String(row.id),
-    iat: Date.now(),
-    exp: Date.now() + AUTH_TOKEN_TTL_MS,
-    pwdUpdatedAt: row.updated_at
+function readCsvRows(filePath) {
+  if (!existsSync(filePath)) return [];
+
+  const content = readFileSync(filePath, 'utf8').replace(/^\uFEFF/, '').trim();
+  if (!content) return [];
+
+  const lines = content.split(/\r?\n/);
+  const headers = parseCsvLine(lines[0]);
+
+  return lines.slice(1).filter(Boolean).map((line) => {
+    const values = parseCsvLine(line);
+    return headers.reduce((row, header, index) => {
+      row[header] = values[index] ?? '';
+      return row;
+    }, {});
   });
-
-  return { ok: true, token };
 }
 
-async function requireAuth(req, res, next) {
-  const token = extractBearerToken(req);
-  const payload = verifyAuthToken(token);
-
-  if (!payload) {
-    return res.status(401).json({ error: 'Nao autenticado' });
-  }
-
-  try {
-    const row = await loadPasswordRow();
-    if (!row?.updated_at || payload.pwdUpdatedAt !== row.updated_at) {
-      return res.status(401).json({ error: 'Sessao expirada' });
-    }
-
-    req.auth = payload;
-    return next();
-  } catch (error) {
-    return res.status(500).json({ error: error.message });
-  }
+function csvText(value, fallback = '') {
+  const text = String(value ?? '').trim();
+  return text || fallback;
 }
 
-app.post('/api/auth/login', async (req, res) => {
-  try {
-    const password = String(req.body?.password ?? '');
-    if (!password.trim()) {
-      return res.status(400).json({ error: 'Senha obrigatoria' });
-    }
+function csvNumber(value, fallback = 0) {
+  const number = Number(value);
+  return Number.isFinite(number) ? number : fallback;
+}
 
-    const result = await authenticatePassword(password.trim());
-    if (!result.ok) {
-      return res.status(401).json({ error: result.error });
-    }
+function run(sql, params = []) {
+  return db.prepare(sql).run(...params);
+}
 
-    return res.json({ token: result.token });
-  } catch (error) {
-    return res.status(500).json({ error: error.message });
+function get(sql, params = []) {
+  return db.prepare(sql).get(...params) ?? null;
+}
+
+function all(sql, params = []) {
+  return db.prepare(sql).all(...params);
+}
+
+function seedDatabase() {
+  if (get('SELECT COUNT(*) AS count FROM fluxos_visoes')?.count === 0) {
+    const rows = readCsvRows(VISOES_CSV);
+    if (rows.length > 0) {
+      db.exec('BEGIN IMMEDIATE');
+      try {
+        const stmt = db.prepare(`
+          INSERT INTO fluxos_visoes (id, nome, descricao, criado_em, categoria, updated_at)
+          VALUES (?, ?, ?, ?, ?, ?)
+        `);
+
+        for (const row of rows) {
+          stmt.run(
+            csvText(row.id),
+            csvText(row.nome),
+            row.descricao ? String(row.descricao) : null,
+            csvText(row.criado_em, nowIso()),
+            csvText(row.categoria, 'painel'),
+            csvText(row.updated_at, nowIso())
+          );
+        }
+
+        db.exec('COMMIT');
+      } catch (error) {
+        db.exec('ROLLBACK');
+        throw error;
+      }
+    }
   }
-});
 
-app.get('/api/auth/status', requireAuth, (req, res) => {
-  res.json({ authenticated: true, session: req.auth });
-});
+  if (get('SELECT COUNT(*) AS count FROM catalogo_componentes')?.count === 0) {
+    const rows = readCsvRows(COMPONENTES_CSV);
+    if (rows.length > 0) {
+      db.exec('BEGIN IMMEDIATE');
+      try {
+        const stmt = db.prepare(`
+          INSERT INTO catalogo_componentes (id, nome, tipo, criado_em)
+          VALUES (?, ?, ?, ?)
+        `);
 
-app.use('/api', requireAuth);
+        for (const row of rows) {
+          stmt.run(
+            csvText(row.id),
+            csvText(row.nome),
+            csvText(row.tipo),
+            csvText(row.criado_em, nowIso())
+          );
+        }
+
+        db.exec('COMMIT');
+      } catch (error) {
+        db.exec('ROLLBACK');
+        throw error;
+      }
+    }
+  }
+
+  if (get('SELECT COUNT(*) AS count FROM fluxo_nos_posicoes')?.count === 0) {
+    const rows = readCsvRows(NODES_CSV);
+    if (rows.length > 0) {
+      db.exec('BEGIN IMMEDIATE');
+      try {
+        const stmt = db.prepare(`
+          INSERT INTO fluxo_nos_posicoes (id, visao_id, componente_id, posicao_x, posicao_y)
+          VALUES (?, ?, ?, ?, ?)
+        `);
+
+        for (const row of rows) {
+          stmt.run(
+            csvText(row.id),
+            csvText(row.visao_id),
+            csvText(row.componente_id),
+            csvNumber(row.posicao_x, 0),
+            csvNumber(row.posicao_y, 0)
+          );
+        }
+
+        db.exec('COMMIT');
+      } catch (error) {
+        db.exec('ROLLBACK');
+        throw error;
+      }
+    }
+  }
+
+  if (get('SELECT COUNT(*) AS count FROM fluxo_conexoes')?.count === 0) {
+    const rows = readCsvRows(CONNECTIONS_CSV);
+    if (rows.length > 0) {
+      db.exec('BEGIN IMMEDIATE');
+      try {
+        const stmt = db.prepare(`
+          INSERT INTO fluxo_conexoes (id, visao_id, origem_no_id, destino_no_id, source_handle, target_handle)
+          VALUES (?, ?, ?, ?, NULL, NULL)
+        `);
+
+        for (const row of rows) {
+          stmt.run(
+            csvText(row.id),
+            csvText(row.visao_id),
+            csvText(row.origem_no_id),
+            csvText(row.destino_no_id)
+          );
+        }
+
+        db.exec('COMMIT');
+      } catch (error) {
+        db.exec('ROLLBACK');
+        throw error;
+      }
+    }
+  }
+}
 
 function getOppositeSide(side) {
   switch (side) {
@@ -237,13 +345,15 @@ function resolveConnectionHandles(sourceNode, targetNode, connection) {
 
   if (!sourcePoint || !targetPoint) {
     return {
-      sourceHandle: connection?.sourceHandle || 'right',
-      targetHandle: connection?.targetHandle || 'left'
+      sourceHandle: connection?.sourceHandle || connection?.source_handle || 'right',
+      targetHandle: connection?.targetHandle || connection?.target_handle || 'left'
     };
   }
 
-  const sourceHandle = connection?.sourceHandle || getHandleSide(sourcePoint, targetPoint);
-  const targetHandle = connection?.targetHandle || getOppositeSide(sourceHandle);
+  const sourceHandle =
+    connection?.sourceHandle || connection?.source_handle || getHandleSide(sourcePoint, targetPoint);
+  const targetHandle =
+    connection?.targetHandle || connection?.target_handle || getOppositeSide(sourceHandle);
 
   return { sourceHandle, targetHandle };
 }
@@ -263,40 +373,6 @@ function getEdgeColorByType(tipo) {
   }
 }
 
-async function deleteFlowCascade(visaoId) {
-  const { error: errConexoes } = await supabase
-    .from('fluxo_conexoes')
-    .delete()
-    .eq('visao_id', visaoId);
-
-  if (errConexoes) return errConexoes;
-
-  const { error: errNos } = await supabase
-    .from('fluxo_nos_posicoes')
-    .delete()
-    .eq('visao_id', visaoId);
-
-  if (errNos) return errNos;
-
-  const { error: errVisao } = await supabase
-    .from('fluxos_visoes')
-    .delete()
-    .eq('id', visaoId);
-
-  return errVisao;
-}
-
-async function touchVisaoUpdatedAt(visaoId) {
-  const { error } = await supabase
-    .from('fluxos_visoes')
-    .update({ updated_at: new Date().toISOString() })
-    .eq('id', visaoId);
-
-  if (error) {
-    console.warn(`Nao foi possivel atualizar updated_at da visao ${visaoId}: ${error.message}`);
-  }
-}
-
 function normalizeVisaoCategoria(categoria) {
   if (categoria === 'painel' || categoria === 'modulo' || categoria === 'bi') {
     return categoria;
@@ -305,266 +381,399 @@ function normalizeVisaoCategoria(categoria) {
   return 'painel';
 }
 
-// 1. BUSCAR FLUXO COMPLETO (Nodes e Edges formatados para o React Flow)
-app.get('/api/fluxo/:visaoId', async (req, res) => {
+function touchVisaoUpdatedAt(visaoId) {
+  run(`UPDATE fluxos_visoes SET updated_at = ? WHERE id = ?`, [nowIso(), visaoId]);
+}
+
+function deleteFlowCascade(visaoId) {
+  run(`DELETE FROM fluxos_visoes WHERE id = ?`, [visaoId]);
+}
+
+function fetchFlowNodes(visaoId) {
+  return all(
+    `
+      SELECT
+        n.id,
+        n.posicao_x,
+        n.posicao_y,
+        c.nome AS nome,
+        c.tipo AS tipo
+      FROM fluxo_nos_posicoes n
+      INNER JOIN catalogo_componentes c ON c.id = n.componente_id
+      WHERE n.visao_id = ?
+    `,
+    [visaoId]
+  );
+}
+
+function fetchFlowConnections(visaoId) {
+  return all(
+    `
+      SELECT
+        id,
+        origem_no_id,
+        destino_no_id,
+        source_handle,
+        target_handle
+      FROM fluxo_conexoes
+      WHERE visao_id = ?
+    `,
+    [visaoId]
+  );
+}
+
+function getNodeById(nodeId) {
+  return get(
+    `
+      SELECT
+        n.id,
+        n.visao_id,
+        n.componente_id,
+        n.posicao_x,
+        n.posicao_y,
+        c.nome,
+        c.tipo
+      FROM fluxo_nos_posicoes n
+      INNER JOIN catalogo_componentes c ON c.id = n.componente_id
+      WHERE n.id = ?
+    `,
+    [nodeId]
+  );
+}
+
+function upsertComponent({ nome, tipo }) {
+  const normalizedName = String(nome ?? '').trim();
+  const normalizedType = String(tipo ?? '').trim();
+  const componentId = crypto.randomUUID();
+  const timestamp = nowIso();
+
+  run(
+    `
+      INSERT INTO catalogo_componentes (id, nome, tipo, criado_em)
+      VALUES (?, ?, ?, ?)
+      ON CONFLICT(nome) DO UPDATE SET
+        tipo = excluded.tipo
+    `,
+    [componentId, normalizedName, normalizedType, timestamp]
+  );
+
+  return get(`SELECT id, nome, tipo, criado_em FROM catalogo_componentes WHERE nome = ?`, [normalizedName]);
+}
+
+app.get('/api/fluxo/:visaoId', (req, res) => {
   try {
     const { visaoId } = req.params;
+    const nodes = fetchFlowNodes(visaoId);
+    const nodeMap = new Map(nodes.map((node) => [node.id, node]));
+    const conexoes = fetchFlowConnections(visaoId);
 
-    const { data: nos, error: errNos } = await supabase
-      .from('fluxo_nos_posicoes')
-      .select('id, posicao_x, posicao_y, catalogo_componentes(nome, tipo)')
-      .eq('visao_id', visaoId);
-
-    if (errNos) return res.status(400).json({ error: errNos.message });
-
-    const { data: conexoes, error: errConexoes } = await supabase
-      .from('fluxo_conexoes')
-      .select('id, origem_no_id, destino_no_id')
-      .eq('visao_id', visaoId);
-
-    if (errConexoes) return res.status(400).json({ error: errConexoes.message });
-
-    const nodes = nos.map(no => ({
-      id: no.id,
-      type: no.catalogo_componentes.tipo,
-      position: { x: no.posicao_x, y: no.posicao_y },
-      data: { label: no.catalogo_componentes.nome }
+    const formattedNodes = nodes.map((node) => ({
+      id: node.id,
+      type: node.tipo,
+      position: { x: node.posicao_x, y: node.posicao_y },
+      data: { label: node.nome }
     }));
 
-    const edges = conexoes.map(edge => ({
-      id: edge.id,
-      source: edge.origem_no_id,
-      target: edge.destino_no_id,
-      ...resolveConnectionHandles(
-        nos.find(no => no.id === edge.origem_no_id),
-        nos.find(no => no.id === edge.destino_no_id),
-        edge
-      ),
-      animated: true,
-      sourceType: nos.find(no => no.id === edge.origem_no_id)?.catalogo_componentes?.tipo,
-      sourceColor: getEdgeColorByType(nos.find(no => no.id === edge.origem_no_id)?.catalogo_componentes?.tipo),
-      style: { stroke: getEdgeColorByType(nos.find(no => no.id === edge.origem_no_id)?.catalogo_componentes?.tipo) }
-    }));
+    const formattedEdges = conexoes.map((edge) => {
+      const sourceNode = nodeMap.get(edge.origem_no_id);
+      const targetNode = nodeMap.get(edge.destino_no_id);
+      const sourceType = sourceNode?.tipo ?? null;
+      const sourceColor = getEdgeColorByType(sourceType);
+      const handles = resolveConnectionHandles(sourceNode, targetNode, edge);
 
-    res.json({ nodes, edges });
+      return {
+        id: edge.id,
+        source: edge.origem_no_id,
+        target: edge.destino_no_id,
+        ...handles,
+        animated: true,
+        sourceType,
+        sourceColor,
+        style: { stroke: sourceColor }
+      };
+    });
+
+    res.json({ nodes: formattedNodes, edges: formattedEdges });
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
 });
 
-// 2. LISTAR AS VISÕES DISPONÍVEIS
-app.get('/api/visoes', async (req, res) => {
-  const { data, error } = await supabase.from('fluxos_visoes').select('*');
-  if (error) return res.status(400).json({ error: error.message });
-  res.json(data);
-});
-
-// 2.1 CRUD: CRIAR UMA NOVA VISÃO / HALL
-app.post('/api/visoes', async (req, res) => {
-  const { nome, categoria } = req.body;
-  if (!nome?.trim()) {
-    return res.status(400).json({ error: 'Nome obrigatório' });
+app.get('/api/visoes', (_req, res) => {
+  try {
+    const data = all(`SELECT * FROM fluxos_visoes ORDER BY updated_at DESC, nome ASC`);
+    res.json(data);
+  } catch (error) {
+    res.status(400).json({ error: error.message });
   }
-
-  const { data, error } = await supabase
-    .from('fluxos_visoes')
-    .insert({ nome: nome.trim(), categoria: normalizeVisaoCategoria(categoria), updated_at: new Date().toISOString() })
-    .select()
-    .single();
-
-  if (error) return res.status(400).json({ error: error.message });
-  res.status(201).json(data);
 });
 
-// 2.2 CRUD: RENOMEAR UMA VISÃO / HALL
-app.patch('/api/visoes/:id', async (req, res) => {
-  const { nome, categoria } = req.body;
-  if (!nome?.trim()) {
-    return res.status(400).json({ error: 'Nome obrigatório' });
+app.post('/api/visoes', (req, res) => {
+  try {
+    const { nome, categoria } = req.body;
+    const cleanNome = String(nome ?? '').trim();
+    if (!cleanNome) {
+      return res.status(400).json({ error: 'Nome obrigatorio' });
+    }
+
+    const id = crypto.randomUUID();
+    const timestamp = nowIso();
+    const row = {
+      id,
+      nome: cleanNome,
+      descricao: null,
+      criado_em: timestamp,
+      categoria: normalizeVisaoCategoria(categoria),
+      updated_at: timestamp
+    };
+
+    run(
+      `
+        INSERT INTO fluxos_visoes (id, nome, descricao, criado_em, categoria, updated_at)
+        VALUES (?, ?, ?, ?, ?, ?)
+      `,
+      [row.id, row.nome, row.descricao, row.criado_em, row.categoria, row.updated_at]
+    );
+
+    res.status(201).json(row);
+  } catch (error) {
+    res.status(400).json({ error: error.message });
   }
-
-  const { data, error } = await supabase
-    .from('fluxos_visoes')
-    .update({ nome: nome.trim(), categoria: normalizeVisaoCategoria(categoria), updated_at: new Date().toISOString() })
-    .eq('id', req.params.id)
-    .select()
-    .single();
-
-  if (error) return res.status(400).json({ error: error.message });
-  res.json(data);
 });
 
-// 2.3 CRUD: REMOVER UMA VISÃO / HALL
-app.delete('/api/visoes/:id', async (req, res) => {
-  const error = await deleteFlowCascade(req.params.id);
-  if (error) return res.status(400).json({ error: error.message });
-  res.sendStatus(204);
+app.patch('/api/visoes/:id', (req, res) => {
+  try {
+    const { nome, categoria } = req.body;
+    const cleanNome = String(nome ?? '').trim();
+    if (!cleanNome) {
+      return res.status(400).json({ error: 'Nome obrigatorio' });
+    }
+
+    const updatedAt = nowIso();
+    const result = run(
+      `
+        UPDATE fluxos_visoes
+        SET nome = ?, categoria = ?, updated_at = ?
+        WHERE id = ?
+      `,
+      [cleanNome, normalizeVisaoCategoria(categoria), updatedAt, req.params.id]
+    );
+
+    if (result.changes === 0) {
+      return res.status(404).json({ error: 'Visao nao encontrada' });
+    }
+
+    const row = get(`SELECT * FROM fluxos_visoes WHERE id = ?`, [req.params.id]);
+    res.json(row);
+  } catch (error) {
+    res.status(400).json({ error: error.message });
+  }
 });
 
-// 3. CRUD: CRIAR NOVO COMPONENTE E ADICIONAR AO FLUXO
-app.post('/api/fluxo/no', async (req, res) => {
+app.delete('/api/visoes/:id', (req, res) => {
+  try {
+    deleteFlowCascade(req.params.id);
+    res.sendStatus(204);
+  } catch (error) {
+    res.status(400).json({ error: error.message });
+  }
+});
+
+app.post('/api/fluxo/no', (req, res) => {
   try {
     const { visaoId, nome, tipo } = req.body;
+    const cleanNome = String(nome ?? '').trim();
+    const cleanTipo = String(tipo ?? '').trim();
 
-    const { data: comp, error: errComp } = await supabase
-      .from('catalogo_componentes')
-      .upsert({ nome, tipo }, { onConflict: 'nome' })
-      .select()
-      .single();
+    if (!visaoId || !cleanNome || !cleanTipo) {
+      return res.status(400).json({ error: 'Dados obrigatorios ausentes' });
+    }
 
-    if (errComp) return res.status(400).json({ error: errComp.message });
+    const component = upsertComponent({ nome: cleanNome, tipo: cleanTipo });
+    if (!component) {
+      return res.status(400).json({ error: 'Nao foi possivel criar o componente' });
+    }
 
-    const { data: noPos, error: errNoPos } = await supabase
-      .from('fluxo_nos_posicoes')
-      .insert({ visao_id: visaoId, componente_id: comp.id })
-      .select('id, posicao_x, posicao_y')
-      .single();
+    const nodeId = crypto.randomUUID();
+    run(
+      `
+        INSERT INTO fluxo_nos_posicoes (id, visao_id, componente_id, posicao_x, posicao_y)
+        VALUES (?, ?, ?, 0, 0)
+      `,
+      [nodeId, visaoId, component.id]
+    );
 
-    if (errNoPos) return res.status(400).json({ error: errNoPos.message });
-
-    await touchVisaoUpdatedAt(visaoId);
+    touchVisaoUpdatedAt(visaoId);
 
     res.status(201).json({
-      id: noPos.id,
-      type: tipo,
-      position: { x: noPos.posicao_x, y: noPos.posicao_y },
-      data: { label: nome }
+      id: nodeId,
+      type: component.tipo,
+      position: { x: 0, y: 0 },
+      data: { label: component.nome }
     });
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
 });
 
-// 4. CRUD: CRIAR CONEXÃO (EDGE)
-app.post('/api/fluxo/conexao', async (req, res) => {
-  const { visaoId, source, target } = req.body;
-  const { data: nodes, error: errNodes } = await supabase
-    .from('fluxo_nos_posicoes')
-    .select('id, posicao_x, posicao_y')
-    .eq('visao_id', visaoId)
-    .in('id', [source, target]);
+app.post('/api/fluxo/conexao', (req, res) => {
+  try {
+    const { visaoId, source, target } = req.body;
+    if (!visaoId || !source || !target) {
+      return res.status(400).json({ error: 'Dados obrigatorios ausentes' });
+    }
 
-  if (errNodes) return res.status(400).json({ error: errNodes.message });
+    const nodes = all(
+      `
+        SELECT
+          n.id,
+          n.posicao_x,
+          n.posicao_y,
+          c.tipo
+        FROM fluxo_nos_posicoes n
+        INNER JOIN catalogo_componentes c ON c.id = n.componente_id
+        WHERE n.visao_id = ? AND n.id IN (?, ?)
+      `,
+      [visaoId, source, target]
+    );
 
-  const sourceNode = nodes.find(no => no.id === source);
-  const targetNode = nodes.find(no => no.id === target);
-  const sourceType = sourceNode?.catalogo_componentes?.tipo;
-  const resolvedHandles = sourceNode && targetNode
-    ? resolveConnectionHandles(
-        { x: sourceNode.posicao_x, y: sourceNode.posicao_y },
-        { x: targetNode.posicao_x, y: targetNode.posicao_y }
-      )
-    : {};
+    const sourceNode = nodes.find((node) => node.id === source);
+    const targetNode = nodes.find((node) => node.id === target);
 
-  const { data, error } = await supabase
-    .from('fluxo_conexoes')
-    .insert({ visao_id: visaoId, origem_no_id: source, destino_no_id: target })
-    .select()
-    .single();
+    if (!sourceNode || !targetNode) {
+      return res.status(400).json({ error: 'Nos nao encontrados' });
+    }
 
-  if (error) return res.status(400).json({ error: error.message });
-  const sourceColor = getEdgeColorByType(sourceType);
-  await touchVisaoUpdatedAt(visaoId);
-  res.status(201).json({ ...data, ...resolvedHandles, sourceType, sourceColor, style: { stroke: sourceColor } });
-});
+    const resolvedHandles = resolveConnectionHandles(sourceNode, targetNode);
+    const connectionId = crypto.randomUUID();
 
-// 4.1 CRUD: REMOVER CONEXÃO (EDGE)
-app.delete('/api/fluxo/conexao/:id', async (req, res) => {
-  const { data: conexao, error: errConexao } = await supabase
-    .from('fluxo_conexoes')
-    .select('visao_id')
-    .eq('id', req.params.id)
-    .single();
+    run(
+      `
+        INSERT INTO fluxo_conexoes (id, visao_id, origem_no_id, destino_no_id, source_handle, target_handle)
+        VALUES (?, ?, ?, ?, ?, ?)
+      `,
+      [connectionId, visaoId, source, target, resolvedHandles.sourceHandle, resolvedHandles.targetHandle]
+    );
 
-  if (errConexao) return res.status(400).json({ error: errConexao.message });
+    const sourceType = sourceNode.tipo;
+    const sourceColor = getEdgeColorByType(sourceType);
+    touchVisaoUpdatedAt(visaoId);
 
-  const { error } = await supabase.from('fluxo_conexoes').delete().eq('id', req.params.id);
-  if (error) return res.status(400).json({ error: error.message });
-  if (conexao?.visao_id) {
-    await touchVisaoUpdatedAt(conexao.visao_id);
+    res.status(201).json({
+      id: connectionId,
+      visao_id: visaoId,
+      origem_no_id: source,
+      destino_no_id: target,
+      sourceHandle: resolvedHandles.sourceHandle,
+      targetHandle: resolvedHandles.targetHandle,
+      sourceType,
+      sourceColor,
+      style: { stroke: sourceColor }
+    });
+  } catch (error) {
+    res.status(400).json({ error: error.message });
   }
-  res.sendStatus(204);
 });
 
-// 5. CRUD: ATUALIZAR POSIÇÃO (PATCH COM DEBOUNCE DO FRONTEND)
-app.patch('/api/fluxo/no/posicao', async (req, res) => {
-  const { noId, posicao_x, posicao_y } = req.body;
-  const { error } = await supabase
-    .from('fluxo_nos_posicoes')
-    .update({ posicao_x, posicao_y })
-    .eq('id', noId);
+app.delete('/api/fluxo/conexao/:id', (req, res) => {
+  try {
+    const conexao = get(`SELECT visao_id FROM fluxo_conexoes WHERE id = ?`, [req.params.id]);
+    const result = run(`DELETE FROM fluxo_conexoes WHERE id = ?`, [req.params.id]);
+    if (result.changes === 0) {
+      return res.sendStatus(204);
+    }
 
-  if (error) return res.status(400).json({ error: error.message });
+    if (conexao?.visao_id) {
+      touchVisaoUpdatedAt(conexao.visao_id);
+    }
 
-  const { data: no, error: errNo } = await supabase
-    .from('fluxo_nos_posicoes')
-    .select('visao_id')
-    .eq('id', noId)
-    .single();
-
-  if (errNo) return res.status(400).json({ error: errNo.message });
-  await touchVisaoUpdatedAt(no.visao_id);
-
-  res.sendStatus(204);
+    res.sendStatus(204);
+  } catch (error) {
+    res.status(400).json({ error: error.message });
+  }
 });
 
-// 5.1 CRUD: EDITAR NOME DO COMPONENTE
-app.patch('/api/fluxo/no/nome', async (req, res) => {
+app.patch('/api/fluxo/no/posicao', (req, res) => {
+  try {
+    const { noId, posicao_x, posicao_y } = req.body;
+    const result = run(
+      `
+        UPDATE fluxo_nos_posicoes
+        SET posicao_x = ?, posicao_y = ?
+        WHERE id = ?
+      `,
+      [Number(posicao_x) || 0, Number(posicao_y) || 0, noId]
+    );
+
+    if (result.changes === 0) {
+      return res.status(404).json({ error: 'No nao encontrado' });
+    }
+
+    const node = get(`SELECT visao_id FROM fluxo_nos_posicoes WHERE id = ?`, [noId]);
+    if (node?.visao_id) {
+      touchVisaoUpdatedAt(node.visao_id);
+    }
+
+    res.sendStatus(204);
+  } catch (error) {
+    res.status(400).json({ error: error.message });
+  }
+});
+
+app.patch('/api/fluxo/no/nome', (req, res) => {
   try {
     const { noId, nome } = req.body;
+    const cleanNome = String(nome ?? '').trim();
+    if (!cleanNome) {
+      return res.status(400).json({ error: 'Nome obrigatorio' });
+    }
 
-    // Busca o componente_id correspondente à instância do nó
-    const { data: no, error: errNo } = await supabase
-      .from('fluxo_nos_posicoes')
-      .select('componente_id, visao_id')
-      .eq('id', noId)
-      .single();
+    const node = get(`SELECT componente_id, visao_id FROM fluxo_nos_posicoes WHERE id = ?`, [noId]);
+    if (!node) {
+      return res.status(404).json({ error: 'Nó não encontrado' });
+    }
 
-    if (errNo || !no) return res.status(400).json({ error: errNo?.message || 'Nó não encontrado' });
+    const result = run(`UPDATE catalogo_componentes SET nome = ? WHERE id = ?`, [cleanNome, node.componente_id]);
+    if (result.changes === 0) {
+      return res.status(400).json({ error: 'Nao foi possivel atualizar o nome' });
+    }
 
-    // Atualiza o nome do componente no catálogo
-    const { error: errComp } = await supabase
-      .from('catalogo_componentes')
-      .update({ nome })
-      .eq('id', no.componente_id);
-
-    if (errComp) return res.status(400).json({ error: errComp.message });
-    await touchVisaoUpdatedAt(no.visao_id);
+    touchVisaoUpdatedAt(node.visao_id);
     res.sendStatus(204);
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
 });
 
-// 6. CRUD: REMOVER INSTÂNCIA DO FLUXO (E CASCASE EDGES)
-app.delete('/api/fluxo/no/:id', async (req, res) => {
-  const nodeId = req.params.id;
+app.delete('/api/fluxo/no/:id', (req, res) => {
+  try {
+    const node = get(`SELECT visao_id FROM fluxo_nos_posicoes WHERE id = ?`, [req.params.id]);
+    const result = run(`DELETE FROM fluxo_nos_posicoes WHERE id = ?`, [req.params.id]);
 
-  const { data: node, error: errNode } = await supabase
-    .from('fluxo_nos_posicoes')
-    .select('visao_id')
-    .eq('id', nodeId)
-    .single();
+    if (result.changes === 0) {
+      return res.sendStatus(204);
+    }
 
-  if (errNode) return res.status(400).json({ error: errNode.message });
+    if (node?.visao_id) {
+      touchVisaoUpdatedAt(node.visao_id);
+    }
 
-  const { error: errEdges } = await supabase
-    .from('fluxo_conexoes')
-    .delete()
-    .or(`origem_no_id.eq.${nodeId},destino_no_id.eq.${nodeId}`);
-
-  if (errEdges) return res.status(400).json({ error: errEdges.message });
-
-  const { error } = await supabase.from('fluxo_nos_posicoes').delete().eq('id', nodeId);
-  if (error) return res.status(400).json({ error: error.message });
-  if (node?.visao_id) {
-    await touchVisaoUpdatedAt(node.visao_id);
+    res.sendStatus(204);
+  } catch (error) {
+    res.status(400).json({ error: error.message });
   }
-  res.sendStatus(204);
 });
 
 const PORT = process.env.PORT || 3001;
-if (process.env.NODE_ENV !== 'production') {
+
+function isDirectExecution() {
+  const entryPoint = process.argv[1];
+  if (!entryPoint) return false;
+
+  return import.meta.url === pathToFileURL(entryPoint).href;
+}
+
+if (isDirectExecution()) {
   app.listen(PORT, () => console.log(`Backend rodando na porta ${PORT}`));
 }
 

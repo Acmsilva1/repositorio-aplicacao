@@ -7,6 +7,10 @@
     "web"
   ],
   "scripts": {
-    "build": "npm run build --prefix web && mv web/dist dist"
+    "dev": "node scripts/run-local.mjs",
+    "start": "node scripts/run-local.mjs",
+    "dev:api": "npm run dev --prefix api",
+    "dev:web": "npm run dev --prefix web",
+    "build": "npm run build --prefix web"
   }
 }
